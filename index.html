@@ -118,10 +118,10 @@ button{cursor:pointer}
 .chip-cc{background:#a855f720;color:var(--purple)}.chip-pix{background:#0099ff20;color:var(--accent2)}.chip-parc{background:#ffb83020;color:var(--warn)}
 /* Visão Geral — Fluxo de Caixa */
 .fluxo-table{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
-.fluxo-header{display:grid;grid-template-columns:80px 1fr 1fr 1fr 1fr;background:var(--faint);padding:10px 12px;gap:4px}
+.fluxo-header{display:grid;grid-template-columns:52px 1fr 1fr 1fr 1fr 1fr;background:var(--faint);padding:10px 12px;gap:4px}
 .fluxo-header span{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:right}
 .fluxo-header span:first-child{text-align:left}
-.fluxo-row{display:grid;grid-template-columns:80px 1fr 1fr 1fr 1fr;padding:11px 12px;gap:4px;border-top:1px solid var(--border);align-items:center}
+.fluxo-row{display:grid;grid-template-columns:52px 1fr 1fr 1fr 1fr 1fr;padding:10px 12px;gap:4px;border-top:1px solid var(--border);align-items:center}
 .fluxo-row:hover{background:var(--faint)}
 .fluxo-mes{font-size:13px;font-weight:600;color:var(--text)}
 .fluxo-val{font-size:12px;font-weight:600;text-align:right}
@@ -630,34 +630,62 @@ function renderVisao() {
 
 function renderFluxo() {
   const hoje_m = new Date().getMonth(), hoje_y = new Date().getFullYear();
-  let html = `<div class="fluxo-header">
-    <span>Mês</span><span>Entradas</span><span>Saídas</span><span>Invest.</span><span>Saldo</span>
+  const COLS = '52px 1fr 1fr 1fr 1fr 1fr';
+
+  let html = `<div class="fluxo-header" style="grid-template-columns:${COLS}">
+    <span style="text-align:left">Mês</span>
+    <span>Entradas</span><span>Saídas</span><span>Invest.</span><span>Fatura CC</span><span>Saldo</span>
   </div>`;
-  let totalEnt=0, totalSai=0, totalInv=0;
+
+  // Regras:
+  // Entradas/Pix/Investimentos → mês da data
+  // Cartão → mês em que a fatura VENCE (via faturaDoLancamento)
+  // Saldo = acumulado mês a mês (saldo anterior + entradas - pix - fatura_cc - investimentos)
+
+  let saldoAcum = 0;
+  let totEnt=0, totPix=0, totFat=0, totInv=0;
+
   for (let m=0; m<12; m++) {
-    const list = getLancs(m, curAno);
-    if (!list.length && m > hoje_m && curAno >= hoje_y) continue; // Não mostra meses futuros sem dados
-    const ent=sum(list,'Entrada'), sai=sum(list,'Saída'), inv=sum(list,'Investimento'), saldo=ent-sai-inv;
-    totalEnt+=ent; totalSai+=sai; totalInv+=inv;
+    const listMes = getLancs(m, curAno);
+
+    const ent    = sum(listMes, 'Entrada');
+    const saiPix = listMes.filter(l=>l.tipo==='Saída'&&l.pagamento!=='Cartão').reduce((a,l)=>a+Number(l.valor),0);
+    const inv    = sum(listMes, 'Investimento');
+    const fatura = lancamentosDaFatura(m, curAno).reduce((a,l)=>a+Number(l.valor),0);
+
+    const saldoMes = saldoAcum + ent - saiPix - fatura - inv;
+    totEnt+=ent; totPix+=saiPix; totFat+=fatura; totInv+=inv;
+
     const isAtual = m===hoje_m && curAno===hoje_y;
-    const saldoCor = saldo>=0?'var(--accent)':'var(--danger)';
-    html += `<div class="fluxo-row ${isAtual?'atual':''}">
+    const temDados = ent||saiPix||fatura||inv||saldoAcum!==0;
+    const saldoCor = saldoMes>=0?'var(--accent)':'var(--danger)';
+
+    html += `<div class="fluxo-row ${isAtual?'atual':''}" style="grid-template-columns:${COLS}">
       <div class="fluxo-mes">${MESES_ABR[m]}${isAtual?' ←':''}</div>
       <div class="fluxo-val" style="color:var(--accent)">${ent>0?fmt(ent):'—'}</div>
-      <div class="fluxo-val" style="color:var(--danger)">${sai>0?fmt(sai):'—'}</div>
+      <div class="fluxo-val" style="color:var(--danger)">${saiPix>0?fmt(saiPix):'—'}</div>
       <div class="fluxo-val" style="color:var(--accent2)">${inv>0?fmt(inv):'—'}</div>
-      <div class="fluxo-val" style="color:${saldoCor}">${ent||sai||inv?(saldo<0?'-':'')+fmt(Math.abs(saldo)):'—'}</div>
+      <div class="fluxo-val" style="color:var(--purple)">${fatura>0?fmt(fatura):'—'}</div>
+      <div class="fluxo-val" style="color:${saldoCor};font-weight:700">${temDados?(saldoMes<0?'-':'')+fmt(Math.abs(saldoMes)):'—'}</div>
     </div>`;
+
+    saldoAcum = saldoMes;
   }
-  // Totais
-  const saldoTotal = totalEnt-totalSai-totalInv;
-  html += `<div class="fluxo-row" style="background:var(--faint);font-weight:700">
-    <div class="fluxo-mes">Total</div>
-    <div class="fluxo-val" style="color:var(--accent)">${fmt(totalEnt)}</div>
-    <div class="fluxo-val" style="color:var(--danger)">${fmt(totalSai)}</div>
-    <div class="fluxo-val" style="color:var(--accent2)">${fmt(totalInv)}</div>
-    <div class="fluxo-val" style="color:${saldoTotal>=0?'var(--accent)':'var(--danger)'}">${saldoTotal<0?'-':''}${fmt(Math.abs(saldoTotal))}</div>
+
+  const saldoFinal = saldoAcum;
+  html += `<div class="fluxo-row" style="grid-template-columns:${COLS};background:var(--faint);font-weight:700;border-top:2px solid var(--border)">
+    <div class="fluxo-mes" style="font-size:11px">Ano</div>
+    <div class="fluxo-val" style="color:var(--accent)">${fmt(totEnt)}</div>
+    <div class="fluxo-val" style="color:var(--danger)">${fmt(totPix)}</div>
+    <div class="fluxo-val" style="color:var(--accent2)">${fmt(totInv)}</div>
+    <div class="fluxo-val" style="color:var(--purple)">${fmt(totFat)}</div>
+    <div class="fluxo-val" style="color:${saldoFinal>=0?'var(--accent)':'var(--danger)'};font-weight:700">${saldoFinal<0?'-':''}${fmt(Math.abs(saldoFinal))}</div>
+  </div>
+  <div style="padding:10px 12px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);line-height:1.6">
+    💳 <strong>Fatura CC</strong> = compras no cartão cuja fatura vence neste mês (fecha dia ${DIA_FECHAMENTO}) ·
+    <strong>Saldo</strong> = acumulado, carregando mês a mês
   </div>`;
+
   document.getElementById('fluxo-table').innerHTML = html;
 }
 
