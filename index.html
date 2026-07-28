@@ -172,21 +172,83 @@ button{cursor:pointer}
 .empty-icon{font-size:40px;margin-bottom:12px}
 .empty p{font-size:14px;line-height:1.6}
 .hidden{display:none!important}
+/* Auth */
+.auth-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.auth-user{font-size:14px;font-weight:600}
+.auth-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.btn-logout{background:var(--faint);border:none;border-radius:8px;padding:7px 12px;font-size:12px;color:var(--muted)}
+/* Config page */
+.config-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.config-section h3{font-size:13px;font-weight:600;margin-bottom:14px;color:var(--accent)}
+.config-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.config-row:last-child{border-bottom:none}
+.config-label{font-size:13px}
+.config-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.config-input{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:14px;text-align:right;width:80px}
+.config-input:focus{outline:none;border-color:var(--accent)}
+.btn-config-save{width:100%;padding:12px;background:var(--accent);color:#0f1923;border:none;border-radius:10px;font-size:14px;font-weight:600;margin-top:4px}
 </style>
 </head>
 <body>
 
-<!-- SETUP -->
+<!-- TELA: CONFIGURAR URL -->
 <div id="setup-screen" class="hidden">
   <div id="setup">
     <div style="font-size:48px;margin-bottom:16px">💰</div>
-    <h1>Configure seu app</h1>
-    <p>Cole a URL do seu Google Apps Script para conectar ao Google Sheets.</p>
+    <h1>Conectar ao servidor</h1>
+    <p>Cole a URL do seu Google Apps Script. Feito uma vez só.</p>
     <div class="setup-box">
       <label>URL do Apps Script</label>
       <input type="url" id="script-url" placeholder="https://script.google.com/macros/s/...">
     </div>
-    <button class="btn-confirm" onclick="saveConfig()" style="width:100%">Conectar</button>
+    <button class="btn-confirm" onclick="saveConfig()" style="width:100%">Salvar e continuar</button>
+  </div>
+</div>
+
+<!-- TELA: LOGIN / CADASTRO -->
+<div id="auth-screen" class="hidden">
+  <div id="setup">
+    <div style="font-size:48px;margin-bottom:12px">&#128176;</div>
+    <h1 style="margin-bottom:4px">Controle Financeiro</h1>
+    <p style="margin-bottom:20px">Gerencie suas financas de qualquer lugar</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;margin-bottom:20px">
+      <button class="inner-tab active" id="tab-login" onclick="setAuthTab('login')">Entrar</button>
+      <button class="inner-tab" id="tab-cadastro" onclick="setAuthTab('cadastro')">Criar conta</button>
+    </div>
+    <div id="auth-login" style="width:100%">
+      <div class="setup-box">
+        <label>E-mail</label>
+        <input type="email" id="login-email" placeholder="seu@email.com" autocomplete="email">
+        <label style="margin-top:12px">Senha</label>
+        <input type="password" id="login-senha" placeholder="......" autocomplete="current-password">
+      </div>
+      <div id="login-erro" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+      <button class="btn-confirm" onclick="fazerLogin()" style="width:100%" id="btn-login">Entrar</button>
+      <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:14px">
+        Nao tem conta? <a href="#" onclick="setAuthTab('cadastro')">Criar conta</a>
+      </p>
+    </div>
+    <div id="auth-cadastro" class="hidden" style="width:100%">
+      <div class="setup-box">
+        <label>Nome completo</label>
+        <input type="text" id="cad-nome" placeholder="Seu nome">
+        <label style="margin-top:12px">E-mail</label>
+        <input type="email" id="cad-email" placeholder="seu@email.com" autocomplete="email">
+        <label style="margin-top:12px">Senha</label>
+        <input type="password" id="cad-senha" placeholder="Minimo 6 caracteres" autocomplete="new-password">
+        <label style="margin-top:12px">Confirmar senha</label>
+        <input type="password" id="cad-senha2" placeholder="Repita a senha">
+      </div>
+      <div id="cad-erro" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+      <div id="cad-ok" style="color:var(--accent);font-size:13px;margin-bottom:10px;display:none"></div>
+      <button class="btn-confirm" onclick="fazerCadastro()" style="width:100%" id="btn-cadastro">Criar conta</button>
+      <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.6">
+        Apos o cadastro, aguarde a aprovacao.<br>Voce recebera um e-mail quando for liberado.
+      </p>
+    </div>
+    <p style="font-size:11px;color:var(--faint);text-align:center;margin-top:20px">
+      <a href="#" onclick="trocarURL()" style="color:var(--faint)">Alterar servidor</a>
+    </p>
   </div>
 </div>
 
@@ -236,7 +298,7 @@ button{cursor:pointer}
         </div>
         <!-- Fatura -->
         <div id="visao-fatura" class="hidden">
-          <div class="info-box">💳 Fatura fecha dia <strong>05</strong> de cada mês. Compras após o dia 05 entram na fatura do mês seguinte.</div>
+          <div class="info-box">💳 Fatura fecha todo dia <strong id='info-dia-fechamento'>5</strong>. Compras após esse dia entram na fatura do mês seguinte.</div>
           <div id="fatura-lista"></div>
         </div>
       </div>
@@ -248,6 +310,42 @@ button{cursor:pointer}
         <div class="sec-label" style="margin-top:20px">Metas mensais</div>
         <div id="metas-list"></div>
         <button class="btn-save-metas" onclick="salvarMetas()">Salvar metas</button>
+      </div>
+
+      <!-- CONFIGURAÇÕES -->
+      <div class="page" id="page-config">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div style="font-size:18px;font-weight:700">Configurações</div>
+          <button class="btn-logout" onclick="fazerLogout()">Sair</button>
+        </div>
+        <div class="config-section">
+          <h3>👤 Minha conta</h3>
+          <div class="config-row">
+            <div><div class="config-label" id="cfg-nome">–</div><div class="config-sub" id="cfg-email">–</div></div>
+          </div>
+        </div>
+        <div class="config-section">
+          <h3>💳 Cartão de crédito</h3>
+          <div class="config-row">
+            <div>
+              <div class="config-label">Dia de fechamento da fatura</div>
+              <div class="config-sub">Compras após este dia entram na fatura do mês seguinte</div>
+            </div>
+            <input class="config-input" type="number" id="cfg-dia-fechamento" min="1" max="28" value="5" inputmode="numeric">
+          </div>
+        </div>
+        <div class="config-section">
+          <h3>⚙️ Sistema</h3>
+          <div class="config-row">
+            <div><div class="config-label">Versão</div></div>
+            <div style="font-size:12px;color:var(--muted)">v4.0</div>
+          </div>
+          <div class="config-row" onclick="trocarURL()" style="cursor:pointer">
+            <div><div class="config-label">Alterar servidor (URL)</div><div class="config-sub">Reconfigurar Apps Script</div></div>
+            <div style="color:var(--muted)">›</div>
+          </div>
+        </div>
+        <button class="btn-config-save" onclick="salvarConfig()">Salvar configurações</button>
       </div>
 
     </div>
@@ -264,6 +362,9 @@ button{cursor:pointer}
       </button>
       <button class="nav-btn" onclick="irPara('projecao',this)">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Projeção
+      </button>
+      <button class="nav-btn" onclick="irPara('config',this)">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Config
       </button>
     </nav>
   </div>
@@ -333,8 +434,6 @@ button{cursor:pointer}
 // ══════════════════════════════════════════════════
 // CONFIGURAÇÕES
 // ══════════════════════════════════════════════════
-const DIA_FECHAMENTO = 5; // fatura fecha dia 5
-
 const CATS={
   "Saída":{
     "Contas":{"Internet/Celular":["Tim","Vivo","Tim + Vivo","Claro"],"Gás":["Gás cozinha"],"Energia":["Energia elétrica"],"Água":["Água e esgoto"],"TV/Streaming":["TV a cabo"],"Outra":["Taxa bancária","Outra conta"]},
@@ -376,30 +475,32 @@ const MESES_ABR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','No
 // ══════════════════════════════════════════════════
 // ESTADO
 // ══════════════════════════════════════════════════
-let SCRIPT_URL='';
-let lancamentos=[];
-let metas={"Contas":800,"Financiamento":3100,"Educação":1150,"Alimentação":400,"Mercado":800,"Saúde":150,"Transporte":400,"Lazer":200,"Cuid. Pessoais":200,"Pets":120,"Compras":350,"Impostos":700,"Transferências":1000,"Casa":200,"Viagem":0,"Seguros":264,"Outros":300};
-let curMes=new Date().getMonth(), curAno=new Date().getFullYear();
-let histMes=new Date().getMonth(), histAno=new Date().getFullYear();
-let histFiltro='Todos', tipoSel='Saída', pagSel='Cartão';
-let visaoTab='fluxo', fabAberto=false, editandoId=null;
+let SCRIPT_URL = '';
+let TOKEN = '';
+let USER = { nome:'', email:'', dia_fechamento:5 };
+let lancamentos = [];
+let metas = {"Contas":800,"Financiamento":3100,"Educação":1150,"Alimentação":400,"Mercado":800,"Saúde":150,"Transporte":400,"Lazer":200,"Cuid. Pessoais":200,"Pets":120,"Compras":350,"Impostos":700,"Transferências":1000,"Casa":200,"Viagem":0,"Seguros":264,"Outros":300};
+let curMes = new Date().getMonth(), curAno = new Date().getFullYear();
+let histMes = new Date().getMonth(), histAno = new Date().getFullYear();
+let histFiltro = 'Todos', tipoSel = 'Saída', pagSel = 'Cartão';
+let visaoTab = 'fluxo', fabAberto = false, editandoId = null;
+
+// Dia de fechamento lido do perfil do usuário
+function getDiaFechamento() { return Number(USER.dia_fechamento) || 5; }
 
 // ══════════════════════════════════════════════════
-// FATURA — Lógica de fechamento dia 5
+// FATURA — Lógica parametrizável
 // ══════════════════════════════════════════════════
-// Retorna {mes, ano} da fatura à qual esta compra pertence
 function faturaDoLancamento(l) {
   if (l.pagamento !== 'Cartão') return null;
-  const dt = new Date(l.data + 'T12:00:00');
+  const dt  = new Date(l.data + 'T12:00:00');
   const dia = dt.getDate(), m = dt.getMonth(), y = dt.getFullYear();
-  // Após o dia de fechamento → entra na fatura do mês seguinte
-  if (dia > DIA_FECHAMENTO) {
+  if (dia > getDiaFechamento()) {
     return m === 11 ? {mes:0, ano:y+1} : {mes:m+1, ano:y};
   }
   return {mes:m, ano:y};
 }
 
-// Lançamentos que caem na fatura de {mes,ano}
 function lancamentosDaFatura(m, y) {
   return lancamentos.filter(l => {
     const f = faturaDoLancamento(l);
@@ -412,27 +513,176 @@ function lancamentosDaFatura(m, y) {
 // ══════════════════════════════════════════════════
 function init() {
   SCRIPT_URL = localStorage.getItem('cf_script_url') || '';
+  TOKEN      = localStorage.getItem('cf_token')      || '';
+  const u    = localStorage.getItem('cf_user');
+  if (u) USER = JSON.parse(u);
   const m = localStorage.getItem('cf_metas');
   if (m) metas = JSON.parse(m);
+
   if (!SCRIPT_URL) {
-    document.getElementById('setup-screen').classList.remove('hidden');
+    // Primeira vez: pede a URL do Apps Script
+    show('setup-screen');
+  } else if (!TOKEN) {
+    // URL ok mas sem sessão: mostra login
+    show('auth-screen');
   } else {
-    document.getElementById('app-shell').classList.remove('hidden');
-    document.getElementById('f-data').value = hoje();
-    initForm();
-    carregarDados();
+    // Sessão ativa: entra direto
+    entrarNoApp();
   }
 }
+
+function show(id) {
+  ['setup-screen','auth-screen','app-shell'].forEach(s =>
+    document.getElementById(s).classList.toggle('hidden', s !== id)
+  );
+}
+
+// ── Salvar URL do servidor ──────────────────────────────────────────
 function saveConfig() {
   const url = document.getElementById('script-url').value.trim();
   if (!url.startsWith('https://script.google.com')) { alert('URL inválida.'); return; }
   localStorage.setItem('cf_script_url', url);
   SCRIPT_URL = url;
-  document.getElementById('setup-screen').classList.add('hidden');
-  document.getElementById('app-shell').classList.remove('hidden');
+  show('auth-screen');
+}
+
+function trocarURL() {
+  localStorage.removeItem('cf_script_url');
+  localStorage.removeItem('cf_token');
+  localStorage.removeItem('cf_user');
+  location.reload();
+}
+
+// ── Tabs login/cadastro ─────────────────────────────────────────────
+function setAuthTab(tab) {
+  document.getElementById('auth-login').classList.toggle('hidden', tab !== 'login');
+  document.getElementById('auth-cadastro').classList.toggle('hidden', tab !== 'cadastro');
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-cadastro').classList.toggle('active', tab === 'cadastro');
+}
+
+// ── LOGIN ───────────────────────────────────────────────────────────
+async function fazerLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value;
+  const erro  = document.getElementById('login-erro');
+  const btn   = document.getElementById('btn-login');
+  if (!email || !senha) { erroAuth(erro, 'Preencha e-mail e senha.'); return; }
+  btn.textContent = 'Entrando...'; btn.classList.add('loading');
+  try {
+    const r = await api('login', { email, senha });
+    if (!r.ok) { erroAuth(erro, r.error); btn.textContent='Entrar'; btn.classList.remove('loading'); return; }
+    TOKEN = r.token;
+    USER  = { nome: r.nome, email, dia_fechamento: r.dia_fechamento || 5 };
+    localStorage.setItem('cf_token', TOKEN);
+    localStorage.setItem('cf_user',  JSON.stringify(USER));
+    erro.style.display = 'none';
+    entrarNoApp();
+  } catch(e) {
+    erroAuth(erro, 'Erro de conexão. Verifique sua internet.');
+    btn.textContent = 'Entrar'; btn.classList.remove('loading');
+  }
+}
+
+// ── CADASTRO ────────────────────────────────────────────────────────
+async function fazerCadastro() {
+  const nome   = document.getElementById('cad-nome').value.trim();
+  const email  = document.getElementById('cad-email').value.trim();
+  const senha  = document.getElementById('cad-senha').value;
+  const senha2 = document.getElementById('cad-senha2').value;
+  const erro   = document.getElementById('cad-erro');
+  const ok     = document.getElementById('cad-ok');
+  const btn    = document.getElementById('btn-cadastro');
+  erro.style.display = 'none'; ok.style.display = 'none';
+  if (!nome||!email||!senha) { erroAuth(erro,'Preencha todos os campos.'); return; }
+  if (senha !== senha2)      { erroAuth(erro,'As senhas não coincidem.'); return; }
+  if (senha.length < 6)      { erroAuth(erro,'Senha deve ter ao menos 6 caracteres.'); return; }
+  btn.textContent = 'Enviando...'; btn.classList.add('loading');
+  try {
+    const r = await api('cadastro', { nome, email, senha });
+    btn.textContent = 'Criar conta'; btn.classList.remove('loading');
+    if (!r.ok) { erroAuth(erro, r.error); return; }
+    ok.textContent = '✅ ' + r.msg;
+    ok.style.display = 'block';
+    document.getElementById('cad-nome').value = '';
+    document.getElementById('cad-email').value = '';
+    document.getElementById('cad-senha').value = '';
+    document.getElementById('cad-senha2').value = '';
+  } catch(e) {
+    erroAuth(erro, 'Erro de conexão.');
+    btn.textContent = 'Criar conta'; btn.classList.remove('loading');
+  }
+}
+
+function erroAuth(el, msg) { el.textContent = msg; el.style.display = 'block'; }
+
+// ── LOGOUT ──────────────────────────────────────────────────────────
+function fazerLogout() {
+  if (!confirm('Sair da sua conta?')) return;
+  localStorage.removeItem('cf_token');
+  localStorage.removeItem('cf_user');
+  TOKEN = ''; USER = {};
+  show('auth-screen');
+}
+
+// ── ENTRAR NO APP ───────────────────────────────────────────────────
+function entrarNoApp() {
+  show('app-shell');
   document.getElementById('f-data').value = hoje();
+  // Preenche nome na config
+  if (document.getElementById('cfg-nome')) {
+    document.getElementById('cfg-nome').textContent = USER.nome || '–';
+    document.getElementById('cfg-email').textContent = USER.email || '–';
+    document.getElementById('cfg-dia-fechamento').value = getDiaFechamento();
+  }
   initForm();
   carregarDados();
+}
+
+// ── SALVAR CONFIG (dia fechamento) ──────────────────────────────────
+async function salvarConfig() {
+  const dia = parseInt(document.getElementById('cfg-dia-fechamento').value);
+  if (!dia || dia < 1 || dia > 28) { alert('Dia inválido (1 a 28).'); return; }
+  USER.dia_fechamento = dia;
+  localStorage.setItem('cf_user', JSON.stringify(USER));
+  try {
+    await apiAuth('config', { config: { dia_fechamento: dia } });
+    alert('✅ Configurações salvas!');
+    renderAll();
+  } catch(e) { alert('Salvo localmente. Sincronize depois.'); }
+}
+
+// ══════════════════════════════════════════════════
+// API — todas as chamadas passam token
+// ══════════════════════════════════════════════════
+async function api(action, body) {
+  const r = await fetch(SCRIPT_URL + '?action=' + action, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+async function apiAuth(action, body = {}) {
+  body.token = TOKEN;
+  const r = await fetch(SCRIPT_URL + '?action=' + action, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+  const data = await r.json();
+  if (data.error === 'Não autorizado') {
+    // Sessão expirada
+    fazerLogout();
+    throw new Error('Sessão expirada');
+  }
+  return data;
+}
+
+async function apiGet() {
+  const r = await fetch(SCRIPT_URL + '?action=get&token=' + TOKEN);
+  const data = await r.json();
+  if (data.error === 'Não autorizado') { fazerLogout(); throw new Error('Sessão expirada'); }
+  return data;
 }
 
 // ══════════════════════════════════════════════════
@@ -442,32 +692,31 @@ function setSyncStatus(s, msg) {
   document.getElementById('sync-dot').className = 'sync-dot ' + s;
   document.getElementById('sync-text').textContent = msg;
 }
+
 async function carregarDados() {
   setSyncStatus('loading', 'Sincronizando...');
   try {
-    const r = await fetch(SCRIPT_URL + '?action=get');
-    const data = await r.json();
+    const data = await apiGet();
     lancamentos = data.lancamentos || [];
     if (data.metas) { metas = {...metas, ...data.metas}; localStorage.setItem('cf_metas', JSON.stringify(metas)); }
+    // Atualiza dia fechamento do servidor
+    if (data.config && data.config.dia_fechamento) {
+      USER.dia_fechamento = Number(data.config.dia_fechamento);
+      localStorage.setItem('cf_user', JSON.stringify(USER));
+      const el = document.getElementById('cfg-dia-fechamento');
+      if (el) el.value = USER.dia_fechamento;
+    }
     setSyncStatus('ok', 'Sincronizado · ' + horaAtual());
     renderAll();
-  } catch(e) { setSyncStatus('err', 'Erro ao sincronizar'); }
+  } catch(e) {
+    if (e.message !== 'Sessão expirada') setSyncStatus('err', 'Erro ao sincronizar');
+  }
 }
-async function enviarLancamento(d) {
-  const r = await fetch(SCRIPT_URL + '?action=add', {method:'POST', body:JSON.stringify(d)});
-  return r.json();
-}
-async function atualizarLancamentoRemoto(d) {
-  const r = await fetch(SCRIPT_URL + '?action=update', {method:'POST', body:JSON.stringify(d)});
-  return r.json();
-}
-async function deletarLancamentoRemoto(id) {
-  const r = await fetch(SCRIPT_URL + '?action=delete', {method:'POST', body:JSON.stringify({id})});
-  return r.json();
-}
-async function salvarMetasRemoto() {
-  await fetch(SCRIPT_URL + '?action=metas', {method:'POST', body:JSON.stringify(metas)});
-}
+
+async function enviarLancamento(d)        { return apiAuth('add', d); }
+async function atualizarLancamentoRemoto(d){ return apiAuth('update', d); }
+async function deletarLancamentoRemoto(id) { return apiAuth('delete', {id}); }
+async function salvarMetasRemoto()         { return apiAuth('metas', {metas}); }
 
 // ══════════════════════════════════════════════════
 // NAVEGAÇÃO
@@ -478,8 +727,13 @@ function irPara(id, btn) {
   document.getElementById('page-' + id).classList.add('active');
   btn.classList.add('active');
   document.getElementById('content').scrollTop = 0;
-  if (id === 'visao') renderVisao();
+  if (id === 'visao')    renderVisao();
   if (id === 'projecao') renderProjecao();
+  if (id === 'config') {
+    document.getElementById('cfg-nome').textContent  = USER.nome  || '–';
+    document.getElementById('cfg-email').textContent = USER.email || '–';
+    document.getElementById('cfg-dia-fechamento').value = getDiaFechamento();
+  }
 }
 function renderAll() { renderResumo(); renderHistorico(); if (visaoTab) renderVisao(); renderProjecao(); }
 
@@ -541,7 +795,7 @@ function renderResumo() {
     <div class="kpi" style="grid-column:1/-1;background:#a855f715;border-color:var(--purple)">
       <div class="kpi-label" style="color:var(--purple)">💳 Fatura cartão — vence em ${MESES[curMes]}</div>
       <div class="kpi-value" style="color:var(--purple)">${fmt(totalFatura)}</div>
-      <div class="kpi-sub">${faturaAtual.length} lançamentos · inclui compras após dia ${DIA_FECHAMENTO}/${MESES_ABR[curMes===0?11:curMes-1]}</div>
+      <div class="kpi-sub">${faturaAtual.length} lançamentos · inclui compras após dia ${getDiaFechamento()}/${MESES_ABR[curMes===0?11:curMes-1]}</div>
     </div>`;
 
   const al = [];
@@ -682,7 +936,7 @@ function renderFluxo() {
     <div class="fluxo-val" style="color:${saldoFinal>=0?'var(--accent)':'var(--danger)'};font-weight:700">${saldoFinal<0?'-':''}${fmt(Math.abs(saldoFinal))}</div>
   </div>
   <div style="padding:10px 12px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);line-height:1.6">
-    💳 <strong>Fatura CC</strong> = compras no cartão cuja fatura vence neste mês (fecha dia ${DIA_FECHAMENTO}) ·
+    💳 <strong>Fatura CC</strong> = compras no cartão cuja fatura vence neste mês (fecha dia ${getDiaFechamento()}) ·
     <strong>Saldo</strong> = acumulado, carregando mês a mês
   </div>`;
 
@@ -853,17 +1107,18 @@ function atualizarInfoFatura() {
   if (pagSel !== 'Cartão') { box.style.display='none'; return; }
   const dataVal = document.getElementById('f-data').value;
   if (!dataVal) { box.style.display='none'; return; }
-  const dt = new Date(dataVal+'T12:00:00');
+  const DIA = getDiaFechamento();
+  const dt  = new Date(dataVal+'T12:00:00');
   const dia = dt.getDate(), m = dt.getMonth(), y = dt.getFullYear();
   let fatM, fatY;
-  if (dia > DIA_FECHAMENTO) {
+  if (dia > DIA) {
     fatM = m===11?0:m+1; fatY = m===11?y+1:y;
   } else {
     fatM=m; fatY=y;
   }
-  const aviso = dia > DIA_FECHAMENTO
-    ? `Compra após dia ${DIA_FECHAMENTO} → entra na fatura de <strong>${MESES[fatM]}/${fatY}</strong>`
-    : `Compra até dia ${DIA_FECHAMENTO} → entra na fatura de <strong>${MESES[fatM]}/${fatY}</strong>`;
+  const aviso = dia > DIA
+    ? `Compra após dia ${DIA} → entra na fatura de <strong>${MESES[fatM]}/${fatY}</strong>`
+    : `Compra até dia ${DIA} → entra na fatura de <strong>${MESES[fatM]}/${fatY}</strong>`;
   box.innerHTML = '💳 ' + aviso;
   box.style.display = 'block';
 }
