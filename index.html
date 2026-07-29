@@ -679,10 +679,19 @@ async function apiAuth(action, body = {}) {
 }
 
 async function apiGet() {
-  const r = await fetch(SCRIPT_URL + '?action=get&token=' + TOKEN);
-  const data = await r.json();
-  if (data.error === 'Não autorizado') { fazerLogout(); throw new Error('Sessão expirada'); }
-  return data;
+  // Tenta GET com token na URL
+  try {
+    const url = SCRIPT_URL + '?action=get&token=' + encodeURIComponent(TOKEN);
+    const r = await fetch(url);
+    const text = await r.text();
+    console.log('apiGet resposta bruta:', text.substring(0, 200));
+    const data = JSON.parse(text);
+    if (data.error === 'Não autorizado') { fazerLogout(); throw new Error('Sessão expirada'); }
+    return data;
+  } catch(e) {
+    console.error('apiGet erro:', e.message);
+    throw e;
+  }
 }
 
 // ══════════════════════════════════════════════════
