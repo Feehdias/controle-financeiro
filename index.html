@@ -713,7 +713,13 @@ async function carregarDados() {
   }
 }
 
-async function enviarLancamento(d)        { return apiAuth('add', d); }
+async function enviarLancamento(d) {
+  console.log('Enviando lançamento... TOKEN:', TOKEN ? 'presente' : 'AUSENTE');
+  const r = await apiAuth('add', d);
+  console.log('Resposta:', JSON.stringify(r));
+  if (!r.ok) console.error('Erro ao salvar:', r.error);
+  return r;
+}
 async function atualizarLancamentoRemoto(d){ return apiAuth('update', d); }
 async function deletarLancamentoRemoto(id) { return apiAuth('delete', {id}); }
 async function salvarMetasRemoto()         { return apiAuth('metas', {metas}); }
@@ -884,20 +890,26 @@ function renderVisao() {
 
 function renderFluxo() {
   const hoje_m = new Date().getMonth(), hoje_y = new Date().getFullYear();
-  const COLS = '52px 1fr 1fr 1fr 1fr 1fr';
+  // 7 colunas: Mês | Entradas | Saídas TOTAL | ↳ Fatura CC | ↳ Invest. | Saldo
+  const COLS = '48px 1fr 1fr 1fr 1fr 1fr';
 
   let html = `<div class="fluxo-header" style="grid-template-columns:${COLS}">
     <span style="text-align:left">Mês</span>
-    <span>Entradas</span><span>Saídas</span><span>Invest.</span><span>Fatura CC</span><span>Saldo</span>
+    <span>Entradas</span>
+    <span>Saídas</span>
+    <span>↳ Fatura CC</span>
+    <span>↳ Invest.</span>
+    <span>Saldo</span>
   </div>`;
 
-  // Regras:
-  // Entradas/Pix/Investimentos → mês da data
-  // Cartão → mês em que a fatura VENCE (via faturaDoLancamento)
-  // Saldo = acumulado mês a mês (saldo anterior + entradas - pix - fatura_cc - investimentos)
+  // Lógica:
+  // Saídas TOTAL = Pix/Débito + Fatura CC do mês + Investimentos
+  // Fatura CC = coluna informativa (compras cartão cuja fatura vence neste mês)
+  // Invest. = coluna informativa (aportes do mês)
+  // Saldo = acumulado: anterior + Entradas - Saídas TOTAL
 
   let saldoAcum = 0;
-  let totEnt=0, totPix=0, totFat=0, totInv=0;
+  let totEnt=0, totSai=0, totFat=0, totInv=0;
 
   for (let m=0; m<12; m++) {
     const listMes = getLancs(m, curAno);
@@ -907,20 +919,23 @@ function renderFluxo() {
     const inv    = sum(listMes, 'Investimento');
     const fatura = lancamentosDaFatura(m, curAno).reduce((a,l)=>a+Number(l.valor),0);
 
-    const saldoMes = saldoAcum + ent - saiPix - fatura - inv;
-    totEnt+=ent; totPix+=saiPix; totFat+=fatura; totInv+=inv;
+    // Saídas totais = pix/débito + fatura CC que vence neste mês + investimentos
+    const saiTotal = saiPix + fatura + inv;
+    const saldoMes = saldoAcum + ent - saiTotal;
 
-    const isAtual = m===hoje_m && curAno===hoje_y;
-    const temDados = ent||saiPix||fatura||inv||saldoAcum!==0;
+    totEnt+=ent; totSai+=saiTotal; totFat+=fatura; totInv+=inv;
+
+    const isAtual  = m===hoje_m && curAno===hoje_y;
+    const temDados = ent||saiTotal||saldoAcum!==0;
     const saldoCor = saldoMes>=0?'var(--accent)':'var(--danger)';
 
     html += `<div class="fluxo-row ${isAtual?'atual':''}" style="grid-template-columns:${COLS}">
       <div class="fluxo-mes">${MESES_ABR[m]}${isAtual?' ←':''}</div>
       <div class="fluxo-val" style="color:var(--accent)">${ent>0?fmt(ent):'—'}</div>
-      <div class="fluxo-val" style="color:var(--danger)">${saiPix>0?fmt(saiPix):'—'}</div>
-      <div class="fluxo-val" style="color:var(--accent2)">${inv>0?fmt(inv):'—'}</div>
-      <div class="fluxo-val" style="color:var(--purple)">${fatura>0?fmt(fatura):'—'}</div>
-      <div class="fluxo-val" style="color:${saldoCor};font-weight:700">${temDados?(saldoMes<0?'-':'')+fmt(Math.abs(saldoMes)):'—'}</div>
+      <div class="fluxo-val" style="color:var(--danger);font-weight:600">${saiTotal>0?fmt(saiTotal):'—'}</div>
+      <div class="fluxo-val" style="color:var(--purple);font-size:11px">${fatura>0?fmt(fatura):'—'}</div>
+      <div class="fluxo-val" style="color:var(--accent2);font-size:11px">${inv>0?fmt(inv):'—'}</div>
+      <div class="fluxo-val" style="color:${saldoCor};font-weight:700">${temDados?(saldoMes<0?'- ':'')+fmt(Math.abs(saldoMes)):'—'}</div>
     </div>`;
 
     saldoAcum = saldoMes;
@@ -930,14 +945,16 @@ function renderFluxo() {
   html += `<div class="fluxo-row" style="grid-template-columns:${COLS};background:var(--faint);font-weight:700;border-top:2px solid var(--border)">
     <div class="fluxo-mes" style="font-size:11px">Ano</div>
     <div class="fluxo-val" style="color:var(--accent)">${fmt(totEnt)}</div>
-    <div class="fluxo-val" style="color:var(--danger)">${fmt(totPix)}</div>
-    <div class="fluxo-val" style="color:var(--accent2)">${fmt(totInv)}</div>
-    <div class="fluxo-val" style="color:var(--purple)">${fmt(totFat)}</div>
-    <div class="fluxo-val" style="color:${saldoFinal>=0?'var(--accent)':'var(--danger)'};font-weight:700">${saldoFinal<0?'-':''}${fmt(Math.abs(saldoFinal))}</div>
+    <div class="fluxo-val" style="color:var(--danger)">${fmt(totSai)}</div>
+    <div class="fluxo-val" style="color:var(--purple);font-size:11px">${fmt(totFat)}</div>
+    <div class="fluxo-val" style="color:var(--accent2);font-size:11px">${fmt(totInv)}</div>
+    <div class="fluxo-val" style="color:${saldoFinal>=0?'var(--accent)':'var(--danger)'}">${saldoFinal<0?'- ':''}${fmt(Math.abs(saldoFinal))}</div>
   </div>
-  <div style="padding:10px 12px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);line-height:1.6">
-    💳 <strong>Fatura CC</strong> = compras no cartão cuja fatura vence neste mês (fecha dia ${getDiaFechamento()}) ·
-    <strong>Saldo</strong> = acumulado, carregando mês a mês
+  <div style="padding:10px 12px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);line-height:1.7">
+    📌 <strong>Saídas</strong> = tudo que sai (Pix/Débito + Fatura CC + Investimentos)<br>
+    💳 <strong>↳ Fatura CC</strong> = parcela do cartão que vence neste mês (fecha dia ${getDiaFechamento()})<br>
+    📈 <strong>↳ Invest.</strong> = aportes realizados no mês<br>
+    💰 <strong>Saldo</strong> = acumulado mês a mês
   </div>`;
 
   document.getElementById('fluxo-table').innerHTML = html;
