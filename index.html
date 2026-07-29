@@ -493,7 +493,8 @@ function getDiaFechamento() { return Number(USER.dia_fechamento) || 5; }
 // ══════════════════════════════════════════════════
 function faturaDoLancamento(l) {
   if (l.pagamento !== 'Cartão') return null;
-  const dt  = new Date(l.data + 'T12:00:00');
+  const dataStr = String(l.data || '').substring(0, 10);
+  const dt  = new Date(dataStr + 'T12:00:00');
   const dia = dt.getDate(), m = dt.getMonth(), y = dt.getFullYear();
   if (dia > getDiaFechamento()) {
     return m === 11 ? {mes:0, ano:y+1} : {mes:m+1, ano:y};
@@ -756,7 +757,12 @@ function renderAll() { renderResumo(); renderHistorico(); if (visaoTab) renderVi
 // HELPERS
 // ══════════════════════════════════════════════════
 function getLancs(m, y) {
-  return lancamentos.filter(l => { const dt = new Date(l.data+'T12:00:00'); return dt.getMonth()===m && dt.getFullYear()===y; });
+  return lancamentos.filter(l => {
+    // Suporta tanto "2026-07-28" quanto "2026-07-28T03:00:00.000Z"
+    const dataStr = String(l.data || '').substring(0, 10); // pega só YYYY-MM-DD
+    const dt = new Date(dataStr + 'T12:00:00');
+    return dt.getMonth() === m && dt.getFullYear() === y;
+  });
 }
 function sum(list, tipo) { return list.filter(l=>l.tipo===tipo).reduce((a,l)=>a+Number(l.valor),0); }
 function sumCat(list, cat) { return list.filter(l=>l.tipo==='Saída'&&l.categoria===cat).reduce((a,l)=>a+Number(l.valor),0); }
@@ -854,7 +860,7 @@ function renderHistorico() {
   if (!list.length) { document.getElementById('historico-list').innerHTML='<div class="empty"><div class="empty-icon">🕐</div><p>Nenhum lançamento encontrado.</p></div>'; return; }
 
   document.getElementById('historico-list').innerHTML = '<div class="tx-list">'+list.map(l=>{
-    const dt=new Date(l.data+'T12:00:00'), dd=dt.getDate().toString().padStart(2,'0')+'/'+MESES_ABR[dt.getMonth()];
+    const dataStr=String(l.data||'').substring(0,10); const dt=new Date(dataStr+'T12:00:00'), dd=dt.getDate().toString().padStart(2,'0')+'/'+MESES_ABR[dt.getMonth()];
     const cor=COR[l.categoria]||'#94a3b8', vcls=l.tipo==='Entrada'?'entrada':l.tipo==='Investimento'?'inv':'saida', sig=l.tipo==='Entrada'?'+':l.tipo==='Investimento'?'▲':'-';
     // Info de fatura para compras no cartão
     let faturaInfo='';
@@ -1134,7 +1140,7 @@ function atualizarInfoFatura() {
   const dataVal = document.getElementById('f-data').value;
   if (!dataVal) { box.style.display='none'; return; }
   const DIA = getDiaFechamento();
-  const dt  = new Date(dataVal+'T12:00:00');
+  const dt  = new Date(String(dataVal).substring(0,10)+'T12:00:00');
   const dia = dt.getDate(), m = dt.getMonth(), y = dt.getFullYear();
   let fatM, fatY;
   if (dia > DIA) {
