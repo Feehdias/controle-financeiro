@@ -1176,13 +1176,35 @@ document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('f-data').addEventListener('change', atualizarInfoFatura);
 });
 
+// Gera data do mês seguinte ao mês de fechamento da fatura
+function proximaDataFatura(dataCompra, nParcela) {
+  // Parcela 1 = fatura do mês após a compra (considerando dia de fechamento)
+  // Parcela 2 = fatura do mês seguinte, etc.
+  const dt  = new Date(String(dataCompra).substring(0,10) + 'T12:00:00');
+  const dia  = dt.getDate();
+  let   m    = dt.getMonth();
+  let   y    = dt.getFullYear();
+  // Se compra após dia de fechamento, primeira parcela já vai pro mês seguinte
+  const offset = dia > getDiaFechamento() ? 1 : 0;
+  m += offset + (nParcela - 1);
+  while (m > 11) { m -= 12; y++; }
+  // Usa dia 1 do mês da fatura (dia exato não importa, o que importa é o mês)
+  return `${y}-${String(m+1).padStart(2,'0')}-01`;
+}
+
 async function salvarLancamento() {
   const valor=parseFloat(document.getElementById('f-valor').value);
   const data=document.getElementById('f-data').value;
   if (!valor||valor<=0) { alert('Informe um valor válido.'); return; }
   if (!data) { alert('Informe a data.'); return; }
 
-  const dado = {
+  const isParcelado = tipoSel==='Saída' && pagSel==='Cartão';
+  const parcTotal   = isParcelado ? parseInt(document.getElementById('f-parc-total').value)||1 : 1;
+  const parcAtual   = isParcelado ? parseInt(document.getElementById('f-parc-atual').value)||1 : 1;
+  const isNovo      = !editandoId;
+
+  // Base do lançamento
+  const base = {
     tipo: tipoSel,
     categoria: document.getElementById('f-cat').value,
     sub: document.getElementById('f-sub').value,
@@ -1190,21 +1212,44 @@ async function salvarLancamento() {
     valor, data,
     obs: document.getElementById('f-obs').value,
     pagamento: tipoSel==='Saída'?pagSel:'',
-    parcAtual: tipoSel==='Saída'&&pagSel==='Cartão'?document.getElementById('f-parc-atual').value:'',
-    parcTotal: tipoSel==='Saída'&&pagSel==='Cartão'?document.getElementById('f-parc-total').value:'',
+    parcAtual: isParcelado ? String(parcAtual) : '',
+    parcTotal: isParcelado ? String(parcTotal) : '',
   };
 
+  // Se for parcelado novo com mais de 1 parcela, gera todas automaticamente
+  const gerarParcelas = isNovo && isParcelado && parcTotal > 1;
+
   const btn=document.getElementById('btn-confirmar');
-  btn.textContent='Salvando...'; btn.classList.add('loading');
+  btn.textContent = gerarParcelas ? `Salvando ${parcTotal} parcelas...` : 'Salvando...';
+  btn.classList.add('loading');
 
   try {
     if (editandoId) {
-      dado.id = editandoId;
+      // Edição: salva só esta parcela
+      const dado = {...base, id: editandoId};
       await atualizarLancamentoRemoto(dado);
       const idx = lancamentos.findIndex(l=>String(l.id)===String(editandoId));
       if (idx>=0) lancamentos[idx] = dado;
+    } else if (gerarParcelas) {
+      // Novo parcelado: cria uma entrada por parcela no mês correto
+      const descBase = base.desc;
+      for (let p = parcAtual; p <= parcTotal; p++) {
+        const dataParc = proximaDataFatura(data, p);
+        const dado = {
+          ...base,
+          id: Date.now() + p, // IDs únicos
+          desc: descBase,
+          data: dataParc,
+          parcAtual: String(p),
+          parcTotal: String(parcTotal),
+        };
+        await enviarLancamento(dado);
+        lancamentos.push(dado);
+        await new Promise(r => setTimeout(r, 100)); // pequena pausa entre saves
+      }
     } else {
-      dado.id = Date.now();
+      // Novo simples (não parcelado ou parcela avulsa)
+      const dado = {...base, id: Date.now()};
       await enviarLancamento(dado);
       lancamentos.push(dado);
     }
