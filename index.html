@@ -496,6 +496,13 @@ function faturaDoLancamento(l) {
   const dataStr = String(l.data || '').substring(0, 10);
   const dt  = new Date(dataStr + 'T12:00:00');
   const dia = dt.getDate(), m = dt.getMonth(), y = dt.getFullYear();
+
+  // Parcelas geradas automaticamente (dia 1) já estão no mês correto — não deslocar
+  if (isParcelaGerada && isParcelaGerada(l)) {
+    return {mes: m, ano: y};
+  }
+
+  // Compra avulsa no cartão: verifica dia de fechamento
   if (dia > getDiaFechamento()) {
     return m === 11 ? {mes:0, ano:y+1} : {mes:m+1, ano:y};
   }
@@ -1178,18 +1185,29 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
 // Gera data do mês seguinte ao mês de fechamento da fatura
 function proximaDataFatura(dataCompra, nParcela) {
-  // Parcela 1 = fatura do mês após a compra (considerando dia de fechamento)
-  // Parcela 2 = fatura do mês seguinte, etc.
+  // Calcula o mês da fatura para cada parcela
+  // Regra: compra após dia de fechamento → 1ª parcela no mês SEGUINTE
+  //        compra antes/no dia de fechamento → 1ª parcela no mês ATUAL
   const dt  = new Date(String(dataCompra).substring(0,10) + 'T12:00:00');
-  const dia  = dt.getDate();
-  let   m    = dt.getMonth();
-  let   y    = dt.getFullYear();
-  // Se compra após dia de fechamento, primeira parcela já vai pro mês seguinte
+  const dia = dt.getDate();
+  let   m   = dt.getMonth();
+  let   y   = dt.getFullYear();
+
   const offset = dia > getDiaFechamento() ? 1 : 0;
   m += offset + (nParcela - 1);
   while (m > 11) { m -= 12; y++; }
-  // Usa dia 1 do mês da fatura (dia exato não importa, o que importa é o mês)
+
+  // IMPORTANTE: usa dia 1 para garantir que faturaDoLancamento
+  // não desloque esta parcela para outro mês (dia 1 < dia de fechamento sempre)
   return `${y}-${String(m+1).padStart(2,'0')}-01`;
+}
+
+// Retorna o mês/ano da fatura de um lançamento parcelado já gerado
+// (lançamentos gerados automaticamente usam dia 1 — não devem ser deslocados)
+function isParcelaGerada(l) {
+  return l.pagamento === 'Cartão' &&
+         Number(l.parcTotal) > 1 &&
+         String(l.data || '').endsWith('-01');
 }
 
 async function salvarLancamento() {
