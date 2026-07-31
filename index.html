@@ -235,7 +235,8 @@ button{cursor:pointer}
         <label style="margin-top:12px">E-mail</label>
         <input type="email" id="cad-email" placeholder="seu@email.com" autocomplete="email">
         <label style="margin-top:12px">Senha</label>
-        <input type="password" id="cad-senha" placeholder="Minimo 6 caracteres" autocomplete="new-password">
+        <input type="password" id="cad-senha" placeholder="Mín. 8 chars, 1 maiúscula, 1 número" autocomplete="new-password" oninput="checaSenha(this)">
+        <div id="senha-strength" style="font-size:11px;margin-top:4px;color:var(--muted)"></div>
         <label style="margin-top:12px">Confirmar senha</label>
         <input type="password" id="cad-senha2" placeholder="Repita a senha">
       </div>
@@ -644,7 +645,9 @@ async function fazerCadastro() {
   erro.style.display = 'none'; ok.style.display = 'none';
   if (!nome||!email||!senha) { erroAuth(erro,'Preencha todos os campos.'); return; }
   if (senha !== senha2)      { erroAuth(erro,'As senhas não coincidem.'); return; }
-  if (senha.length < 6)      { erroAuth(erro,'Senha deve ter ao menos 6 caracteres.'); return; }
+  if (senha.length < 8)      { erroAuth(erro,'Senha deve ter ao menos 8 caracteres.'); return; }
+  if (!/[A-Z]/.test(senha))  { erroAuth(erro,'Senha deve ter ao menos uma letra maiúscula.'); return; }
+  if (!/[0-9]/.test(senha))  { erroAuth(erro,'Senha deve ter ao menos um número.'); return; }
   btn.textContent = 'Enviando...'; btn.classList.add('loading');
   try {
     const r = await api('cadastro', { nome, email, senha });
@@ -663,6 +666,23 @@ async function fazerCadastro() {
 }
 
 function erroAuth(el, msg) { el.textContent = msg; el.style.display = 'block'; }
+
+function checaSenha(input) {
+  const s   = input.value;
+  const el  = document.getElementById('senha-strength');
+  if (!el) return;
+  const checks = [
+    [s.length >= 8,      '8+ caracteres'],
+    [/[A-Z]/.test(s),   '1 maiúscula'],
+    [/[0-9]/.test(s),   '1 número'],
+    [/[^A-Za-z0-9]/.test(s), '1 símbolo (extra)'],
+  ];
+  const ok    = checks.filter(c=>c[0]).length;
+  const cores = ['var(--danger)','var(--danger)','var(--warn)','var(--accent)'];
+  const labels= ['Muito fraca','Fraca','Boa','Forte'];
+  el.textContent = ok < 3 ? '⚠️ ' + labels[ok] + ' — falta: ' + checks.filter(c=>!c[0]).map(c=>c[1]).join(', ') : '✅ ' + labels[Math.min(ok,3)];
+  el.style.color = cores[Math.min(ok,3)];
+}
 
 // ── LOGOUT ──────────────────────────────────────────────────────────
 function fazerLogout() {
@@ -718,8 +738,13 @@ async function apiAuth(action, body = {}) {
     body: JSON.stringify(body)
   });
   const data = await r.json();
-  if (data.error === 'Não autorizado') {
-    // Sessão expirada
+  // Detecta sessão expirada ou não autorizado
+  if (data.error && (
+    data.error.includes('Não autorizado') ||
+    data.error.includes('sessão expirada') ||
+    data.error.includes('Sessão expirada')
+  )) {
+    alert('Sua sessão expirou. Faça login novamente.');
     fazerLogout();
     throw new Error('Sessão expirada');
   }
