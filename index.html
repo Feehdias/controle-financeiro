@@ -282,7 +282,18 @@ button{cursor:pointer}
             <button onclick="mudarMesHist(1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
           </div>
         </div>
-        <div class="filter-bar" id="hist-filtros"></div>
+        <!-- Barra de seleção em lote -->
+        <div class="batch-bar hidden" id="batch-bar">
+          <span class="batch-info"><span id="batch-count">0</span> selecionados</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn-batch-cancel" onclick="cancelarSelecao()">Cancelar</button>
+            <button class="btn-batch-del" onclick="excluirSelecionados()">🗑️ Excluir</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="filter-bar" id="hist-filtros" style="margin-bottom:0;flex:1"></div>
+          <button id="btn-selecionar" onclick="toggleSelecao()" style="background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--muted);white-space:nowrap;margin-left:8px">Selecionar</button>
+        </div>
         <div id="historico-list"></div>
       </div>
 
@@ -323,6 +334,24 @@ button{cursor:pointer}
           <div class="config-row">
             <div><div class="config-label" id="cfg-nome">–</div><div class="config-sub" id="cfg-email">–</div></div>
           </div>
+        </div>
+        <!-- Salário -->
+        <div class="config-section">
+          <h3>💰 Salário e remuneração</h3>
+          <div class="config-row">
+            <div><div class="config-label">Salário bruto mensal</div><div class="config-sub">Base para cálculo de INSS e IR</div></div>
+            <input class="config-input" type="number" id="cfg-salario-bruto" value="0" min="0" step="100" inputmode="numeric" style="width:110px" oninput="calcularSalario()">
+          </div>
+          <div class="config-row">
+            <div><div class="config-label">Número de dependentes</div><div class="config-sub">Dedução de R$ 189,59 por dependente (IR)</div></div>
+            <input class="config-input" type="number" id="cfg-dependentes" value="0" min="0" step="1" inputmode="numeric" oninput="calcularSalario()">
+          </div>
+          <div class="config-row" style="flex-direction:column;align-items:flex-start;gap:10px">
+            <div class="config-label">Descontos adicionais em folha</div>
+            <div id="cfg-descontos-lista" style="width:100%"></div>
+            <button onclick="addDesconto()" style="background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--accent);font-size:13px;width:100%">+ Adicionar desconto</button>
+          </div>
+          <div id="sal-resultado" class="sal-resultado hidden"></div>
         </div>
         <div class="config-section">
           <h3>💳 Cartão de crédito</h3>
@@ -425,6 +454,17 @@ button{cursor:pointer}
     </div>
 
     <div class="field"><label>Observação</label><input type="text" id="f-obs" placeholder="Opcional"></div>
+    <!-- Recorrente -->
+    <div id="bloco-recorrente" class="recorrente-row">
+      <label for="f-recorrente">🔁 Lançamento recorrente</label>
+      <div class="toggle-wrap">
+        <input type="checkbox" id="f-recorrente" onchange="toggleRecorrente(this)">
+        <div id="f-recorrente-meses-wrap" class="hidden" style="display:flex;align-items:center;gap:6px">
+          <input type="number" id="f-recorrente-meses" value="12" min="1" max="60" style="width:60px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 8px;color:var(--text);text-align:center" inputmode="numeric">
+          <span style="font-size:12px;color:var(--muted)">meses</span>
+        </div>
+      </div>
+    </div>
     <button class="btn-confirm" id="btn-confirmar" onclick="salvarLancamento()">Confirmar</button>
     <button class="delete-btn hidden" id="btn-deletar" onclick="deletarLancamento()">🗑️ Excluir lançamento</button>
   </div>
@@ -756,6 +796,11 @@ function irPara(id, btn) {
     document.getElementById('cfg-nome').textContent  = USER.nome  || '–';
     document.getElementById('cfg-email').textContent = USER.email || '–';
     document.getElementById('cfg-dia-fechamento').value = getDiaFechamento();
+    // Restaura salário e descontos
+    if (USER.salario_bruto) document.getElementById('cfg-salario-bruto').value = USER.salario_bruto;
+    if (USER.dependentes !== undefined) document.getElementById('cfg-dependentes').value = USER.dependentes||0;
+    if (USER.descontos_extras) { descontosExtras = USER.descontos_extras; renderDescontos(); }
+    calcularSalario();
   }
 }
 function renderAll() { renderResumo(); renderHistorico(); if (visaoTab) renderVisao(); renderProjecao(); }
@@ -875,15 +920,28 @@ function renderHistorico() {
       const f=faturaDoLancamento(l);
       if(f) faturaInfo=`<span>fatura ${MESES_ABR[f.mes]}/${f.ano}</span>`;
     }
+    const isEstorno = l.categoria === 'Estorno';
+    if (modoSelecao) {
+      return `<div class="tx" style="gap:8px">
+        <input type="checkbox" class="tx-check" ${selecionados.has(String(l.id))?'checked':''} onchange="toggleCheck('${l.id}',this)">
+        <div class="tx-icon" style="background:${cor}20">${EMOJI[l.categoria]||'📌'}</div>
+        <div class="tx-info">
+          <div class="tx-desc">${l.desc}</div>
+          <div class="tx-meta"><span>${l.categoria} · ${dd}</span>${chipPag(l)}${faturaInfo}</div>
+        </div>
+        <div class="tx-val ${vcls}">${sig} ${fmt(l.valor)}</div>
+      </div>`;
+    }
     return `<div class="tx">
       <div class="tx-icon" style="background:${cor}20">${EMOJI[l.categoria]||'📌'}</div>
       <div class="tx-info">
-        <div class="tx-desc">${l.desc}</div>
+        <div class="tx-desc">${isEstorno?'↩️ ':''} ${l.desc}</div>
         <div class="tx-meta"><span>${l.categoria} · ${dd}</span>${chipPag(l)}${faturaInfo}${l.obs?`<span>${l.obs}</span>`:''}</div>
       </div>
       <div class="tx-right">
         <div class="tx-val ${vcls}">${sig} ${fmt(l.valor)}</div>
         <div class="tx-actions">
+          ${l.tipo==='Saída'&&!isEstorno?`<button class="tx-btn" onclick="lancarEstorno('${l.id}')" title="Estornar">↩️</button>`:''}
           <button class="tx-btn" onclick="abrirModal('${l.id}')" title="Editar">✏️</button>
           <button class="tx-btn del" onclick="confirmarDelete('${l.id}')" title="Excluir">🗑️</button>
         </div>
@@ -1238,7 +1296,9 @@ async function salvarLancamento() {
   const gerarParcelas = isNovo && isParcelado && parcTotal > 1;
 
   const btn=document.getElementById('btn-confirmar');
-  btn.textContent = gerarParcelas ? `Salvando ${parcTotal} parcelas...` : 'Salvando...';
+  const recorrenteAtivo = document.getElementById('f-recorrente')?.checked;
+  const nMesesRec = recorrenteAtivo ? (parseInt(document.getElementById('f-recorrente-meses')?.value)||1) : 1;
+  btn.textContent = gerarParcelas ? `Salvando ${parcTotal} parcelas...` : recorrenteAtivo ? `Salvando ${nMesesRec} meses...` : 'Salvando...';
   btn.classList.add('loading');
 
   try {
@@ -1266,10 +1326,24 @@ async function salvarLancamento() {
         await new Promise(r => setTimeout(r, 100)); // pequena pausa entre saves
       }
     } else {
-      // Novo simples (não parcelado ou parcela avulsa)
-      const dado = {...base, id: Date.now()};
-      await enviarLancamento(dado);
-      lancamentos.push(dado);
+      // Novo simples — verifica se é recorrente
+      const recorrente = document.getElementById('f-recorrente')?.checked;
+      const nMeses     = recorrente ? (parseInt(document.getElementById('f-recorrente-meses')?.value)||1) : 1;
+
+      for (let rep = 0; rep < nMeses; rep++) {
+        let dataRep = base.data;
+        if (rep > 0) {
+          // Avança o mês
+          const dt = new Date(String(base.data).substring(0,10) + 'T12:00:00');
+          let m = dt.getMonth() + rep, y = dt.getFullYear();
+          while (m > 11) { m -= 12; y++; }
+          dataRep = `${y}-${String(m+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+        }
+        const dado = {...base, id: Date.now() + rep, data: dataRep};
+        await enviarLancamento(dado);
+        lancamentos.push(dado);
+        if (rep < nMeses - 1) await new Promise(r => setTimeout(r, 100));
+      }
     }
     btn.textContent='✓ Salvo!'; btn.style.background='#00c896';
     setTimeout(()=>{ btn.textContent='Confirmar'; btn.style.background=''; btn.classList.remove('loading'); fecharModal(); },1200);
@@ -1300,6 +1374,215 @@ async function deletarById(id) {
     setSyncStatus('ok','Sincronizado · '+horaAtual());
   } catch(e) { alert('Erro ao excluir.'); }
 }
+
+
+// ══════════════════════════════════════════════════
+// SELEÇÃO EM LOTE — Histórico
+// ══════════════════════════════════════════════════
+let modoSelecao = false;
+let selecionados = new Set();
+
+function toggleSelecao() {
+  modoSelecao = !modoSelecao;
+  selecionados.clear();
+  document.getElementById('btn-selecionar').textContent = modoSelecao ? 'Cancelar' : 'Selecionar';
+  document.getElementById('btn-selecionar').style.color = modoSelecao ? 'var(--danger)' : '';
+  document.getElementById('batch-bar').classList.toggle('hidden', !modoSelecao);
+  renderHistorico();
+}
+
+function cancelarSelecao() {
+  modoSelecao = false;
+  selecionados.clear();
+  document.getElementById('btn-selecionar').textContent = 'Selecionar';
+  document.getElementById('btn-selecionar').style.color = '';
+  document.getElementById('batch-bar').classList.add('hidden');
+  renderHistorico();
+}
+
+function toggleCheck(id, el) {
+  if (el.checked) selecionados.add(String(id));
+  else selecionados.delete(String(id));
+  document.getElementById('batch-count').textContent = selecionados.size;
+}
+
+async function excluirSelecionados() {
+  if (!selecionados.size) return;
+  if (!confirm(`Excluir ${selecionados.size} lançamento(s)?`)) return;
+  const btn = document.querySelector('.btn-batch-del');
+  btn.textContent = 'Excluindo...'; btn.disabled = true;
+  try {
+    for (const id of selecionados) {
+      await deletarLancamentoRemoto(id);
+      lancamentos = lancamentos.filter(l => String(l.id) !== id);
+    }
+    selecionados.clear();
+    cancelarSelecao();
+    renderAll();
+    setSyncStatus('ok', 'Sincronizado · ' + horaAtual());
+  } catch(e) {
+    alert('Erro ao excluir. Tente novamente.');
+  }
+  btn.textContent = '🗑️ Excluir'; btn.disabled = false;
+}
+
+// ══════════════════════════════════════════════════
+// ESTORNO
+// ══════════════════════════════════════════════════
+async function lancarEstorno(id) {
+  const l = lancamentos.find(x => String(x.id) === String(id));
+  if (!l) return;
+  if (!confirm(`Estornar "${l.desc}" de ${fmt(l.valor)}? Será criada uma entrada positiva.`)) return;
+  const dado = {
+    tipo: 'Entrada',
+    categoria: 'Estorno',
+    sub: l.categoria,
+    desc: 'Estorno: ' + l.desc,
+    valor: Number(l.valor),
+    data: hoje(),
+    obs: 'Estorno do lançamento original de ' + l.data,
+    pagamento: '',
+    parcAtual: '', parcTotal: '',
+    id: Date.now(),
+  };
+  // Adiciona Estorno às categorias de entrada se não existir
+  if (!CATS['Entrada']['Estorno']) CATS['Entrada']['Estorno'] = { 'Estorno':['Estorno de compra'] };
+  try {
+    await enviarLancamento(dado);
+    lancamentos.push(dado);
+    renderAll();
+    setSyncStatus('ok', 'Sincronizado · ' + horaAtual());
+    alert('✅ Estorno lançado como entrada!');
+  } catch(e) { alert('Erro ao lançar estorno.'); }
+}
+
+// ══════════════════════════════════════════════════
+// RECORRENTE
+// ══════════════════════════════════════════════════
+function toggleRecorrente(cb) {
+  document.getElementById('f-recorrente-meses-wrap').classList.toggle('hidden', !cb.checked);
+}
+
+// ══════════════════════════════════════════════════
+// CALCULADORA DE SALÁRIO (Config)
+// ══════════════════════════════════════════════════
+let descontosExtras = [];
+
+function addDesconto() {
+  descontosExtras.push({ nome: '', valor: 0 });
+  renderDescontos();
+}
+
+function removeDesconto(i) {
+  descontosExtras.splice(i, 1);
+  renderDescontos();
+  calcularSalario();
+}
+
+function renderDescontos() {
+  const el = document.getElementById('cfg-descontos-lista');
+  if (!el) return;
+  el.innerHTML = descontosExtras.map((d, i) => `
+    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+      <input type="text" placeholder="Desconto (ex: Plano de Saúde)" value="${d.nome}"
+        style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px"
+        oninput="descontosExtras[${i}].nome=this.value">
+      <input type="number" placeholder="R$" value="${d.valor||''}"
+        style="width:90px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;text-align:right"
+        oninput="descontosExtras[${i}].valor=parseFloat(this.value)||0;calcularSalario()">
+      <button onclick="removeDesconto(${i})" style="background:var(--faint);border:none;border-radius:8px;width:32px;height:32px;color:var(--danger);font-size:16px">×</button>
+    </div>`).join('');
+}
+
+function calcularSalario() {
+  const bruto = parseFloat(document.getElementById('cfg-salario-bruto')?.value) || 0;
+  const deps  = parseInt(document.getElementById('cfg-dependentes')?.value) || 0;
+  const el    = document.getElementById('sal-resultado');
+  if (!el || bruto <= 0) { el && el.classList.add('hidden'); return; }
+
+  // INSS 2026 progressivo
+  const inss = Math.min(
+    Math.max(0, Math.min(bruto, 1518.00)) * 0.075 +
+    Math.max(0, Math.min(bruto, 2793.88) - 1518.00) * 0.09 +
+    Math.max(0, Math.min(bruto, 4190.83) - 2793.88) * 0.12 +
+    Math.max(0, Math.min(bruto, 8157.41) - 4190.83) * 0.14,
+    908.82
+  );
+
+  // Base IR = bruto - inss - dependentes
+  const deducaoDep = deps * 189.59;
+  const baseIR = Math.max(0, bruto - inss - deducaoDep);
+
+  // IR 2026
+  let ir = 0;
+  if (baseIR > 5831.90)      ir = baseIR * 0.275 - 1133.21;
+  else if (baseIR > 4664.68) ir = baseIR * 0.225 - 842.21;
+  else if (baseIR > 3751.05) ir = baseIR * 0.15  - 492.61;
+  else if (baseIR > 2824.00) ir = baseIR * 0.075 - 211.80;
+  // Crédito isenção até R$ 5.000
+  if (baseIR <= 5000) ir = Math.max(0, ir - 528.30);
+  ir = Math.max(0, ir);
+
+  const totalExtras = descontosExtras.reduce((a,d) => a + (d.valor||0), 0);
+  const liquido     = bruto - inss - ir - totalExtras;
+  const adiantamento = liquido * 0.40; // 40% do líquido como adiantamento
+
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="sal-linha"><span class="sal-desc">Salário bruto</span><span class="sal-val">${fmt(bruto)}</span></div>
+    <div class="sal-linha"><span class="sal-desc">(-) INSS</span><span class="sal-val" style="color:var(--danger)">- ${fmt(inss)}</span></div>
+    <div class="sal-linha"><span class="sal-desc">(-) IR retido</span><span class="sal-val" style="color:var(--danger)">- ${fmt(ir)}</span></div>
+    ${descontosExtras.filter(d=>d.valor>0).map(d=>`<div class="sal-linha"><span class="sal-desc">(-) ${d.nome||'Desconto'}</span><span class="sal-val" style="color:var(--danger)">- ${fmt(d.valor)}</span></div>`).join('')}
+    <div class="sal-linha"><span class="sal-desc">💰 Salário líquido</span><span class="sal-val">${fmt(liquido)}</span></div>
+    <div class="sal-linha" style="margin-top:4px"><span class="sal-desc">📅 Adiantamento dia 15 (~40%)</span><span class="sal-val" style="color:var(--accent2)">${fmt(adiantamento)}</span></div>
+    <div class="sal-linha"><span class="sal-desc">📅 Pagamento final (~60%)</span><span class="sal-val" style="color:var(--accent)">${fmt(liquido - adiantamento)}</span></div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button onclick="lancarSalarioMes(${liquido}, ${adiantamento})" style="flex:1;padding:10px;background:var(--accent);color:#0f1923;border:none;border-radius:8px;font-size:13px;font-weight:600">✅ Lançar este mês</button>
+    </div>`;
+
+  // Salva no USER para usar depois
+  USER.salario_bruto    = bruto;
+  USER.salario_liquido  = liquido;
+  USER.adiantamento     = adiantamento;
+  USER.descontos_extras = descontosExtras;
+}
+
+async function lancarSalarioMes(liquido, adiantamento) {
+  const mesAtual = hoje().substring(0, 7); // YYYY-MM
+  const dia15    = mesAtual + '-15';
+  const diaFinal = mesAtual + '-' + new Date(curAno, curMes+1, 0).getDate();
+
+  const lançamentos = [
+    { desc:'Adiantamento (dia 15)', valor:adiantamento, data:dia15, sub:'Adiantamento' },
+    { desc:'Salário líquido', valor:liquido - adiantamento, data:diaFinal, sub:'Salário' },
+  ];
+
+  for (const l of lançamentos) {
+    const dado = {
+      tipo:'Entrada', categoria:'Salário', sub:l.sub,
+      desc:l.desc, valor:l.valor, data:l.data,
+      obs:'Lançado automaticamente via Config',
+      pagamento:'', parcAtual:'', parcTotal:'',
+      id: Date.now() + Math.random()
+    };
+    await enviarLancamento(dado);
+    lancamentos.push(dado);
+    await new Promise(r => setTimeout(r, 150));
+  }
+  renderAll();
+  alert('✅ Adiantamento e salário lançados!');
+}
+
+// ══════════════════════════════════════════════════
+// OVERRIDE salvarConfig para salvar descontos extras
+// ══════════════════════════════════════════════════
+const _salvarConfigOrig = salvarConfig;
+salvarConfig = async function() {
+  // Salva descontos extras no USER
+  USER.descontos_extras = descontosExtras;
+  localStorage.setItem('cf_user', JSON.stringify(USER));
+  await _salvarConfigOrig();
+};
 
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){fecharModal();closeFab();} });
 init();
