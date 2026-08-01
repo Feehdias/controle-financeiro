@@ -767,25 +767,59 @@ async function apiAuth(action, body = {}) {
     data.error.includes('sessão expirada') ||
     data.error.includes('Sessão expirada')
   )) {
-    alert('Sua sessão expirou. Faça login novamente.');
-    fazerLogout();
+    // Tenta renovar antes de deslogar
+    try {
+      const r2 = await fetch(SCRIPT_URL + '?action=refresh&token=' + encodeURIComponent(TOKEN));
+      const d2 = await r2.json();
+      if (d2.ok && d2.token) {
+        TOKEN = d2.token;
+        localStorage.setItem('cf_token', TOKEN);
+        // Retenta a requisição original
+        body.token = TOKEN;
+        const r3 = await fetch(SCRIPT_URL + '?action=' + action, { method:'POST', body:JSON.stringify(body) });
+        return r3.json();
+      }
+    } catch(e2) {}
+    // Renovação falhou — desloga
+    localStorage.removeItem('cf_token');
+    localStorage.removeItem('cf_user');
+    TOKEN = ''; USER = {};
+    show('auth-screen');
     throw new Error('Sessão expirada');
   }
   return data;
 }
 
 async function apiGet() {
-  // Tenta GET com token na URL
   try {
     const url = SCRIPT_URL + '?action=get&token=' + encodeURIComponent(TOKEN);
     const r = await fetch(url);
     const text = await r.text();
     console.log('apiGet resposta bruta:', text.substring(0, 200));
     const data = JSON.parse(text);
-    if (data.error === 'Não autorizado') { fazerLogout(); throw new Error('Sessão expirada'); }
+    if (data.error && (data.error.includes('Não autorizado') || data.error.includes('xpirada'))) {
+      // Tenta renovar token
+      try {
+        const r2 = await fetch(SCRIPT_URL + '?action=refresh&token=' + encodeURIComponent(TOKEN));
+        const d2 = await r2.json();
+        if (d2.ok && d2.token) {
+          TOKEN = d2.token;
+          localStorage.setItem('cf_token', TOKEN);
+          // Retenta
+          const r3 = await fetch(SCRIPT_URL + '?action=get&token=' + encodeURIComponent(TOKEN));
+          return JSON.parse(await r3.text());
+        }
+      } catch(e2) {}
+      // Renovação falhou
+      localStorage.removeItem('cf_token');
+      localStorage.removeItem('cf_user');
+      TOKEN = ''; USER = {};
+      show('auth-screen');
+      throw new Error('Sessão expirada');
+    }
     return data;
   } catch(e) {
-    console.error('apiGet erro:', e.message);
+    if (e.message !== 'Sessão expirada') console.error('apiGet erro:', e.message);
     throw e;
   }
 }
@@ -798,8 +832,33 @@ function setSyncStatus(s, msg) {
   document.getElementById('sync-text').textContent = msg;
 }
 
+// Renova token automaticamente se estiver próximo de vencer (< 1 dia restante)
+async function renovarTokenSeNecessario() {
+  try {
+    const decoded = atob(TOKEN);
+    const partes  = decoded.split(':');
+    if (partes.length < 2) return;
+    const expira  = parseInt(partes[1]);
+    const umDia   = 24 * 60 * 60 * 1000;
+    if (expira - Date.now() < umDia) {
+      // Token vence em menos de 1 dia — renova silenciosamente
+      const r = await fetch(SCRIPT_URL + '?action=refresh&token=' + encodeURIComponent(TOKEN));
+      const data = await r.json();
+      if (data.ok && data.token) {
+        TOKEN = data.token;
+        localStorage.setItem('cf_token', TOKEN);
+        console.log('Token renovado automaticamente');
+      }
+    }
+  } catch(e) {
+    // Falha silenciosa — não interrompe o fluxo
+  }
+}
+
 async function carregarDados() {
   setSyncStatus('loading', 'Sincronizando...');
+  // Tenta renovar token antes de carregar
+  if (TOKEN) await renovarTokenSeNecessario();
   try {
     const data = await apiGet();
     lancamentos = data.lancamentos || [];
