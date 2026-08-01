@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Finanças</title>
 <link rel="manifest" href="manifest.json">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -223,6 +224,11 @@ button{cursor:pointer}
         <input type="password" id="login-senha" placeholder="......" autocomplete="current-password">
       </div>
       <div id="login-erro" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+      <div class="cf-turnstile" id="turnstile-login"
+           data-sitekey="0x4AAAAAAEDs4otUX297Bi4V"
+           data-theme="dark"
+           data-size="flexible"
+           style="margin-bottom:12px"></div>
       <button class="btn-confirm" onclick="fazerLogin()" style="width:100%" id="btn-login">Entrar</button>
       <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:14px">
         Nao tem conta? <a href="#" onclick="setAuthTab('cadastro')">Criar conta</a>
@@ -242,6 +248,11 @@ button{cursor:pointer}
       </div>
       <div id="cad-erro" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
       <div id="cad-ok" style="color:var(--accent);font-size:13px;margin-bottom:10px;display:none"></div>
+      <div class="cf-turnstile" id="turnstile-cadastro"
+           data-sitekey="0x4AAAAAAEDs4otUX297Bi4V"
+           data-theme="dark"
+           data-size="flexible"
+           style="margin-bottom:12px"></div>
       <button class="btn-confirm" onclick="fazerCadastro()" style="width:100%" id="btn-cadastro">Criar conta</button>
       <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.6">
         Apos o cadastro, aguarde a aprovacao.<br>Voce recebera um e-mail quando for liberado.
@@ -617,9 +628,15 @@ async function fazerLogin() {
   const erro  = document.getElementById('login-erro');
   const btn   = document.getElementById('btn-login');
   if (!email || !senha) { erroAuth(erro, 'Preencha e-mail e senha.'); return; }
+
+  // Pega token do Turnstile
+  const tsEl = document.querySelector('#turnstile-login [name="cf-turnstile-response"]');
+  const tsToken = tsEl ? tsEl.value : '';
+  if (!tsToken) { erroAuth(erro, 'Verificação de segurança não concluída. Aguarde.'); return; }
+
   btn.textContent = 'Entrando...'; btn.classList.add('loading');
   try {
-    const r = await api('login', { email, senha });
+    const r = await api('login', { email, senha, tsToken });
     if (!r.ok) { erroAuth(erro, r.error); btn.textContent='Entrar'; btn.classList.remove('loading'); return; }
     TOKEN = r.token;
     USER  = { nome: r.nome, email, dia_fechamento: r.dia_fechamento || 5 };
@@ -630,6 +647,7 @@ async function fazerLogin() {
   } catch(e) {
     erroAuth(erro, 'Erro de conexão. Verifique sua internet.');
     btn.textContent = 'Entrar'; btn.classList.remove('loading');
+    if (window.turnstile) window.turnstile.reset('#turnstile-login');
   }
 }
 
@@ -648,9 +666,14 @@ async function fazerCadastro() {
   if (senha.length < 8)      { erroAuth(erro,'Senha deve ter ao menos 8 caracteres.'); return; }
   if (!/[A-Z]/.test(senha))  { erroAuth(erro,'Senha deve ter ao menos uma letra maiúscula.'); return; }
   if (!/[0-9]/.test(senha))  { erroAuth(erro,'Senha deve ter ao menos um número.'); return; }
+  // Pega token do Turnstile
+  const tsCadEl = document.querySelector('#turnstile-cadastro [name="cf-turnstile-response"]');
+  const tsCadToken = tsCadEl ? tsCadEl.value : '';
+  if (!tsCadToken) { erroAuth(erro, 'Verificação de segurança não concluída. Aguarde.'); return; }
+
   btn.textContent = 'Enviando...'; btn.classList.add('loading');
   try {
-    const r = await api('cadastro', { nome, email, senha });
+    const r = await api('cadastro', { nome, email, senha, tsToken: tsCadToken });
     btn.textContent = 'Criar conta'; btn.classList.remove('loading');
     if (!r.ok) { erroAuth(erro, r.error); return; }
     ok.textContent = '✅ ' + r.msg;
