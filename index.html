@@ -1,563 +1,1826 @@
-// ════════════════════════════════════════════════════════════════════
-// CONTROLE FINANCEIRO — Google Apps Script v6 (SEGURANÇA MÁXIMA)
-// ════════════════════════════════════════════════════════════════════
-// ATUALIZAÇÃO SEGURA: não apaga dados dos usuários
-// Apenas atualize o código e crie nova implantação mantendo a URL
-// ════════════════════════════════════════════════════════════════════
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#0f1923">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Finanças</title>
+<link rel="manifest" href="manifest.json">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src https://script.google.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; img-src 'self' data:;">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1923;--surface:#19252f;--card:#1f2f3a;--border:#2a3d4a;
+  --accent:#00c896;--accent2:#0099ff;--danger:#ff5252;--warn:#ffb830;--purple:#a855f7;
+  --text:#e8edf2;--muted:#7a9ab0;--faint:#2e4050;--radius:14px;
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;overflow-x:hidden}
+input,select,textarea,button{font-family:var(--font);font-size:15px;color:var(--text)}
+button{cursor:pointer}
+.shell{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto}
+.content{flex:1;overflow-y:auto;padding:16px 16px 24px;-webkit-overflow-scrolling:touch}
+.content::-webkit-scrollbar{display:none}
+/* Nav */
+.nav{display:flex;background:var(--surface);border-top:1px solid var(--border);padding:6px 0 max(6px,env(safe-area-inset-bottom));flex-shrink:0}
+.nav-btn{flex:1;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;color:var(--muted);font-size:10px;font-weight:500;-webkit-tap-highlight-color:transparent}
+.nav-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-btn.active{color:var(--accent)}
+.page{display:none}.page.active{display:block}
+/* Setup */
+#setup{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100%;padding:32px 20px;text-align:center}
+#setup h1{font-size:22px;font-weight:600;margin-bottom:8px}
+#setup p{color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:24px}
+.setup-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;width:100%;margin-bottom:12px;text-align:left}
+.setup-box label{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.setup-box input{width:100%;background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px}
+.setup-box input:focus{outline:none;border-color:var(--accent)}
+/* Month bar */
+.month-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.month-title{font-size:18px;font-weight:700}
+.month-nav{display:flex;gap:6px}
+.month-nav button{background:var(--card);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+/* KPIs */
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.kpi-label{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.kpi-value{font-size:20px;font-weight:700}
+.kpi-value.green{color:var(--accent)}.kpi-value.red{color:var(--danger)}.kpi-value.blue{color:var(--accent2)}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.sec-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:20px 0 10px}
+/* Alerts */
+.alert{display:flex;align-items:flex-start;gap:10px;background:var(--card);border-radius:10px;padding:12px;margin-bottom:8px;font-size:13px;line-height:1.5}
+.alert-icon{font-size:16px;flex-shrink:0;margin-top:1px}
+.alert.danger{border-left:3px solid var(--danger)}.alert.warn{border-left:3px solid var(--warn)}.alert.ok{border-left:3px solid var(--accent)}.alert.info{border-left:3px solid var(--accent2)}
+.alert strong{color:var(--text)}.alert span{color:var(--muted)}
+/* Progress */
+.prog-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px}
+.prog-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.prog-name{font-size:13px;font-weight:500}
+.prog-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+.badge-ok{background:#00c89622;color:var(--accent)}.badge-warn{background:#ffb83022;color:var(--warn)}.badge-danger{background:#ff525222;color:var(--danger)}
+.prog-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px}
+.prog-bar{height:5px;background:var(--faint);border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;border-radius:3px;transition:width .5s}
+.fill-ok{background:var(--accent)}.fill-warn{background:var(--warn)}.fill-danger{background:var(--danger)}
+/* FAB */
+.fab-wrap{position:fixed;bottom:calc(70px + env(safe-area-inset-bottom));right:16px;display:flex;flex-direction:column;align-items:flex-end;gap:10px;z-index:50}
+.fab{width:54px;height:54px;border-radius:50%;background:var(--accent);border:none;color:#0f1923;font-size:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px #00c89650;transition:transform .15s}
+.fab:active{transform:scale(.94)}
+.fab-mini-wrap{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.fab-mini-wrap.hidden{display:none}
+.fab-mini{display:flex;align-items:center;gap:8px}
+.fab-mini-label{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:500;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.fab-mini-btn{width:42px;height:42px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:none;align-items:flex-end}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius) var(--radius) 0 0;padding:20px 20px max(20px,env(safe-area-inset-bottom));width:100%;max-height:92dvh;overflow-y:auto}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.modal-title{font-size:17px;font-weight:700}
+.modal-close{background:var(--faint);border:none;color:var(--muted);width:30px;height:30px;border-radius:50%;font-size:18px;display:flex;align-items:center;justify-content:center}
+/* Form */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.field input,.field select{width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:11px 13px;color:var(--text);font-size:15px;-webkit-appearance:none;appearance:none}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
+.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a9ab0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center;padding-right:36px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.field-row .field{margin-bottom:0}
+.tipo-toggle{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.tipo-btn{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 6px;font-size:13px;font-weight:500;color:var(--muted);text-align:center}
+.tipo-btn.active-saida{background:#ff525215;border-color:var(--danger);color:var(--danger)}
+.tipo-btn.active-entrada{background:#00c89615;border-color:var(--accent);color:var(--accent)}
+.tipo-btn.active-inv{background:#0099ff15;border-color:var(--accent2);color:var(--accent2)}
+.pag-toggle{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.pag-btn{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 6px;font-size:13px;font-weight:500;color:var(--muted);text-align:center}
+.pag-btn.active{background:#a855f715;border-color:var(--purple);color:var(--purple)}
+/* Info box cartão */
+.info-box{background:var(--faint);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px}
+.info-box strong{color:var(--text)}
+.btn-confirm{width:100%;padding:14px;background:var(--accent);color:#0f1923;border:none;border-radius:10px;font-size:15px;font-weight:700;margin-top:4px}
+.btn-confirm.loading{opacity:.6;pointer-events:none}
+/* Transactions */
+.tx-list{display:flex;flex-direction:column;gap:8px}
+.tx{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:13px;position:relative}
+.tx-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.tx-info{flex:1;min-width:0}
+.tx-desc{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-meta{font-size:11px;color:var(--muted);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap}
+.tx-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+.tx-val{font-size:15px;font-weight:700}
+.tx-val.saida{color:var(--danger)}.tx-val.entrada{color:var(--accent)}.tx-val.inv{color:var(--accent2)}
+.tx-actions{display:flex;gap:4px}
+.tx-btn{background:var(--faint);border:none;border-radius:6px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted)}
+.tx-btn:hover{color:var(--text)}
+.tx-btn.del:hover{color:var(--danger);background:#ff525215}
+.chip{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 6px;border-radius:10px;font-weight:600}
+.chip-cc{background:#a855f720;color:var(--purple)}.chip-pix{background:#0099ff20;color:var(--accent2)}.chip-parc{background:#ffb83020;color:var(--warn)}
+/* Visão Geral — Fluxo de Caixa */
+.fluxo-table{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.fluxo-header{display:grid;grid-template-columns:52px 1fr 1fr 1fr 1fr 1fr;background:var(--faint);padding:10px 12px;gap:4px}
+.fluxo-header span{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:right}
+.fluxo-header span:first-child{text-align:left}
+.fluxo-row{display:grid;grid-template-columns:52px 1fr 1fr 1fr 1fr 1fr;padding:10px 12px;gap:4px;border-top:1px solid var(--border);align-items:center}
+.fluxo-row:hover{background:var(--faint)}
+.fluxo-mes{font-size:13px;font-weight:600;color:var(--text)}
+.fluxo-val{font-size:12px;font-weight:600;text-align:right}
+.fluxo-row.atual{background:#00c89608;border-left:3px solid var(--accent)}
+/* Fatura cartão */
+.fatura-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden}
+.fatura-header{padding:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.fatura-mes{font-size:15px;font-weight:700}
+.fatura-total{font-size:18px;font-weight:700;color:var(--purple)}
+.fatura-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.fatura-body{border-top:1px solid var(--border)}
+.fatura-body.hidden{display:none}
+.fatura-item{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)}
+.fatura-item:last-child{border-bottom:none}
+.fatura-item-info{flex:1;min-width:0}
+.fatura-item-desc{font-size:13px;font-weight:500}
+.fatura-item-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.fatura-item-val{font-size:13px;font-weight:700;color:var(--purple);flex-shrink:0}
+/* Tabs internas */
+.inner-tabs{display:flex;gap:8px;margin-bottom:16px}
+.inner-tab{flex:1;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--muted);font-size:13px;font-weight:500;text-align:center}
+.inner-tab.active{background:var(--accent);border-color:var(--accent);color:#0f1923}
+/* Projeção */
+.proj-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:10px}
+.proj-row{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border-bottom:1px solid var(--border)}
+.proj-row:last-child{border-bottom:none}
+.proj-name{font-size:13px;font-weight:500}.proj-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.proj-right{text-align:right}
+.proj-val{font-size:14px;font-weight:700}.proj-pct{font-size:11px;color:var(--muted);margin-top:2px}
+.meta-row{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:6px}
+.meta-label{flex:1;font-size:13px}
+.meta-input{width:100px;background:var(--faint);border:1px solid var(--border);border-radius:7px;padding:6px 8px;text-align:right;color:var(--text);font-size:13px}
+.meta-input:focus{outline:none;border-color:var(--accent)}
+.btn-save-metas{width:100%;padding:12px;background:var(--faint);color:var(--accent);border:1px solid var(--accent);border-radius:10px;font-size:14px;font-weight:600;margin-top:10px}
+/* Sync */
+.sync-bar{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:12px}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--muted)}
+.sync-dot.ok{background:var(--accent)}.sync-dot.err{background:var(--danger)}.sync-dot.loading{background:var(--warn);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+/* Filter */
+.filter-bar{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px}
+.filter-bar::-webkit-scrollbar{display:none}
+.filter-chip{flex-shrink:0;padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
+.filter-chip.active{background:var(--accent);border-color:var(--accent);color:#0f1923}
+/* Edit modal */
+.delete-btn{width:100%;padding:13px;background:#ff525215;color:var(--danger);border:1px solid var(--danger);border-radius:10px;font-size:14px;font-weight:600;margin-top:8px}
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty-icon{font-size:40px;margin-bottom:12px}
+.empty p{font-size:14px;line-height:1.6}
+.hidden{display:none!important}
+/* Auth */
+.auth-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.auth-user{font-size:14px;font-weight:600}
+.auth-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.btn-logout{background:var(--faint);border:none;border-radius:8px;padding:7px 12px;font-size:12px;color:var(--muted)}
+/* Config page */
+.config-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.config-section h3{font-size:13px;font-weight:600;margin-bottom:14px;color:var(--accent)}
+.config-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.config-row:last-child{border-bottom:none}
+.config-label{font-size:13px}
+.config-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.config-input{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:14px;text-align:right;width:80px}
+.config-input:focus{outline:none;border-color:var(--accent)}
+.btn-config-save{width:100%;padding:12px;background:var(--accent);color:#0f1923;border:none;border-radius:10px;font-size:14px;font-weight:600;margin-top:4px}
+</style>
+</head>
+<body>
 
-const ADMIN_EMAIL      = 'felipediascosta7@gmail.com';
-const APP_NAME         = 'Controle Financeiro';
-const TURNSTILE_SECRET = '0x4AAAAAAEDs4nydWrs0H_L21RP_cQnwd2I';
-const TOKEN_DIAS       = 30;
-const MAX_TENTATIVAS   = 5;
-const BLOQUEIO_MIN     = 15;
+<!-- TELA: CONFIGURAR URL -->
+<div id="setup-screen" class="hidden">
+  <div id="setup">
+    <div style="font-size:48px;margin-bottom:16px">💰</div>
+    <h1>Conectar ao servidor</h1>
+    <p>Cole a URL do seu Google Apps Script. Feito uma vez só.</p>
+    <div class="setup-box">
+      <label>URL do Apps Script</label>
+      <input type="url" id="script-url" placeholder="https://script.google.com/macros/s/...">
+    </div>
+    <button class="btn-confirm" onclick="saveConfig()" style="width:100%">Salvar e continuar</button>
+  </div>
+</div>
 
-function getProp(k)    { return PropertiesService.getScriptProperties().getProperty(k); }
-function setProp(k, v) { PropertiesService.getScriptProperties().setProperty(k, v); }
+<!-- TELA: LOGIN / CADASTRO -->
+<div id="auth-screen" class="hidden">
+  <div id="setup">
+    <div style="font-size:48px;margin-bottom:12px">&#128176;</div>
+    <h1 style="margin-bottom:4px">Controle Financeiro</h1>
+    <p style="margin-bottom:20px">Gerencie suas financas de qualquer lugar</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;margin-bottom:20px">
+      <button class="inner-tab active" id="tab-login" onclick="setAuthTab('login')">Entrar</button>
+      <button class="inner-tab" id="tab-cadastro" onclick="setAuthTab('cadastro')">Criar conta</button>
+    </div>
+    <div id="auth-login" style="width:100%">
+      <div class="setup-box">
+        <label>E-mail</label>
+        <input type="email" id="login-email" placeholder="seu@email.com" autocomplete="email">
+        <label style="margin-top:12px">Senha</label>
+        <input type="password" id="login-senha" placeholder="......" autocomplete="current-password">
+      </div>
+      <div id="login-erro" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+      <div class="cf-turnstile" id="turnstile-login"
+           data-sitekey="0x4AAAAAAEDs4otUX297Bi4V"
+           data-theme="dark"
+           data-size="flexible"
+           style="margin-bottom:12px"></div>
+      <button class="btn-confirm" onclick="fazerLogin()" style="width:100%" id="btn-login">Entrar</button>
+      <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:14px">
+        Nao tem conta? <a href="#" onclick="setAuthTab('cadastro')">Criar conta</a>
+        &nbsp;·&nbsp; <a href="#" onclick="setAuthTab('reset')">Esqueci minha senha</a>
+      </p>
+    </div>
+    <!-- RESET SENHA -->
+    <div id="auth-reset" class="hidden" style="width:100%">
+      <div id="reset-step1">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5">
+          Informe seu e-mail e enviaremos um código de redefinição válido por 15 minutos.
+        </p>
+        <div class="setup-box">
+          <label>E-mail cadastrado</label>
+          <input type="email" id="reset-email" placeholder="seu@email.com" autocomplete="email">
+        </div>
+        <div class="cf-turnstile" id="turnstile-reset" data-sitekey="0x4AAAAAAEDs4otUX297Bi4V" data-theme="dark" data-size="flexible" style="margin-bottom:12px"></div>
+        <div id="reset-erro" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+        <div id="reset-ok" style="color:var(--accent);font-size:13px;margin-bottom:10px;display:none"></div>
+        <button class="btn-confirm" onclick="solicitarReset()" style="width:100%" id="btn-reset">Enviar código</button>
+      </div>
+      <div id="reset-step2" class="hidden">
+        <input type="hidden" id="reset-email-hidden">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5">
+          Verifique seu e-mail e insira o código recebido.
+        </p>
+        <div class="setup-box">
+          <label>Código recebido por e-mail</label>
+          <input type="text" id="reset-codigo" placeholder="Cole o código aqui" autocomplete="off">
+          <label style="margin-top:12px">Nova senha</label>
+          <input type="password" id="reset-nova-senha" placeholder="Mín. 8 chars, 1 maiúscula, 1 número">
+          <label style="margin-top:12px">Confirmar nova senha</label>
+          <input type="password" id="reset-confirma-senha" placeholder="Repita a nova senha">
+        </div>
+        <div id="reset2-erro" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+        <button class="btn-confirm" onclick="redefinirSenha()" style="width:100%" id="btn-redefinir">Redefinir senha</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:14px">
+        <a href="#" onclick="setAuthTab('login')">Voltar ao login</a>
+      </p>
+    </div>
 
-// ════════════════════════════════════════════════════════════════════
-// SETUP — execute UMA VEZ (não apaga dados existentes)
-// ════════════════════════════════════════════════════════════════════
-function setupInicial() {
-  if (!getProp('TOKEN_SECRET')) {
-    const b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Math.random() + '' + Date.now());
-    setProp('TOKEN_SECRET', b.map(x => ('0'+(x&0xFF).toString(16)).slice(-2)).join('').substring(0,32));
-    Logger.log('Secret gerada.');
-  } else {
-    Logger.log('Secret já existe — mantida.');
+    <div id="auth-cadastro" class="hidden" style="width:100%">
+      <div class="setup-box">
+        <label>Nome completo</label>
+        <input type="text" id="cad-nome" placeholder="Seu nome">
+        <label style="margin-top:12px">E-mail</label>
+        <input type="email" id="cad-email" placeholder="seu@email.com" autocomplete="email">
+        <label style="margin-top:12px">Senha</label>
+        <input type="password" id="cad-senha" placeholder="Mín. 8 chars, 1 maiúscula, 1 número" autocomplete="new-password" oninput="checaSenha(this)">
+        <div id="senha-strength" style="font-size:11px;margin-top:4px;color:var(--muted)"></div>
+        <label style="margin-top:12px">Confirmar senha</label>
+        <input type="password" id="cad-senha2" placeholder="Repita a senha">
+      </div>
+      <div id="cad-erro" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+      <div id="cad-ok" style="color:var(--accent);font-size:13px;margin-bottom:10px;display:none"></div>
+      <div class="cf-turnstile" id="turnstile-cadastro"
+           data-sitekey="0x4AAAAAAEDs4otUX297Bi4V"
+           data-theme="dark"
+           data-size="flexible"
+           style="margin-bottom:12px"></div>
+      <button class="btn-confirm" onclick="fazerCadastro()" style="width:100%" id="btn-cadastro">Criar conta</button>
+      <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.6">
+        Apos o cadastro, aguarde a aprovacao.<br>Voce recebera um e-mail quando for liberado.
+      </p>
+    </div>
+    <p style="font-size:11px;color:var(--faint);text-align:center;margin-top:20px">
+      <a href="#" onclick="trocarURL()" style="color:var(--faint)">Alterar servidor</a>
+    </p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-shell" class="hidden">
+  <div class="shell">
+    <div class="content" id="content">
+
+      <!-- RESUMO -->
+      <div class="page active" id="page-resumo">
+        <div class="sync-bar"><div class="sync-dot" id="sync-dot"></div><span id="sync-text">Sincronizando...</span></div>
+        <div class="month-bar">
+          <div class="month-title" id="mes-nome">–</div>
+          <div class="month-nav">
+            <button onclick="mudarMes(-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <button onclick="mudarMes(1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+          </div>
+        </div>
+        <div class="kpi-grid" id="kpis"></div>
+        <div id="alertas"></div>
+        <div class="sec-label">Orçamento por categoria</div>
+        <div id="barras"></div>
+      </div>
+
+      <!-- HISTÓRICO -->
+      <div class="page" id="page-historico">
+        <div class="month-bar">
+          <div class="month-title" id="hist-mes-nome">–</div>
+          <div class="month-nav">
+            <button onclick="mudarMesHist(-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <button onclick="mudarMesHist(1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+          </div>
+        </div>
+        <!-- Barra de seleção em lote -->
+        <div class="batch-bar hidden" id="batch-bar">
+          <span class="batch-info"><span id="batch-count">0</span> selecionados</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn-batch-cancel" onclick="cancelarSelecao()">Cancelar</button>
+            <button class="btn-batch-del" onclick="excluirSelecionados()">🗑️ Excluir</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="filter-bar" id="hist-filtros" style="margin-bottom:0;flex:1"></div>
+          <button id="btn-selecionar" onclick="toggleSelecao()" style="background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--muted);white-space:nowrap;margin-left:8px">Selecionar</button>
+        </div>
+        <div id="historico-list"></div>
+      </div>
+
+      <!-- VISÃO GERAL -->
+      <div class="page" id="page-visao">
+        <div class="inner-tabs">
+          <button class="inner-tab active" onclick="setVisaoTab('fluxo',this)">📊 Fluxo de Caixa</button>
+          <button class="inner-tab" onclick="setVisaoTab('fatura',this)">💳 Fatura Cartão</button>
+        </div>
+        <!-- Fluxo -->
+        <div id="visao-fluxo">
+          <div class="fluxo-table" id="fluxo-table"></div>
+        </div>
+        <!-- Fatura -->
+        <div id="visao-fatura" class="hidden">
+          <div class="info-box">💳 Fatura fecha todo dia <strong id='info-dia-fechamento'>5</strong>. Compras após esse dia entram na fatura do mês seguinte.</div>
+          <div id="fatura-lista"></div>
+        </div>
+      </div>
+
+      <!-- PROJEÇÃO -->
+      <div class="page" id="page-projecao">
+        <div class="sec-label">Projetado vs realizado</div>
+        <div class="proj-card" id="proj-linhas"></div>
+        <div class="sec-label" style="margin-top:20px">Metas mensais</div>
+        <div id="metas-list"></div>
+        <button class="btn-save-metas" onclick="salvarMetas()">Salvar metas</button>
+      </div>
+
+      <!-- CONFIGURAÇÕES -->
+      <div class="page" id="page-config">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div style="font-size:18px;font-weight:700">Configurações</div>
+          <button class="btn-logout" onclick="fazerLogout()">Sair</button>
+        </div>
+        <div class="config-section">
+          <h3>👤 Minha conta</h3>
+          <div class="config-row">
+            <div><div class="config-label" id="cfg-nome">–</div><div class="config-sub" id="cfg-email">–</div></div>
+          </div>
+        </div>
+        <!-- Salário -->
+        <div class="config-section">
+          <h3>💰 Salário e remuneração</h3>
+          <div class="config-row">
+            <div><div class="config-label">Salário bruto mensal</div><div class="config-sub">Base para cálculo de INSS e IR</div></div>
+            <input class="config-input" type="number" id="cfg-salario-bruto" value="0" min="0" step="100" inputmode="numeric" style="width:110px" oninput="calcularSalario()">
+          </div>
+          <div class="config-row">
+            <div><div class="config-label">Número de dependentes</div><div class="config-sub">Dedução de R$ 189,59 por dependente (IR)</div></div>
+            <input class="config-input" type="number" id="cfg-dependentes" value="0" min="0" step="1" inputmode="numeric" oninput="calcularSalario()">
+          </div>
+          <div class="config-row" style="flex-direction:column;align-items:flex-start;gap:10px">
+            <div class="config-label">Descontos adicionais em folha</div>
+            <div id="cfg-descontos-lista" style="width:100%"></div>
+            <button onclick="addDesconto()" style="background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--accent);font-size:13px;width:100%">+ Adicionar desconto</button>
+          </div>
+          <div id="sal-resultado" class="sal-resultado hidden"></div>
+        </div>
+        <div class="config-section">
+          <h3>💳 Cartão de crédito</h3>
+          <div class="config-row">
+            <div>
+              <div class="config-label">Dia de fechamento da fatura</div>
+              <div class="config-sub">Compras após este dia entram na fatura do mês seguinte</div>
+            </div>
+            <input class="config-input" type="number" id="cfg-dia-fechamento" min="1" max="28" value="5" inputmode="numeric">
+          </div>
+        </div>
+        <div class="config-section">
+          <h3>⚙️ Sistema</h3>
+          <div class="config-row">
+            <div><div class="config-label">Versão</div></div>
+            <div style="font-size:12px;color:var(--muted)">v4.0</div>
+          </div>
+          <div class="config-row" onclick="trocarURL()" style="cursor:pointer">
+            <div><div class="config-label">Alterar servidor (URL)</div><div class="config-sub">Reconfigurar Apps Script</div></div>
+            <div style="color:var(--muted)">›</div>
+          </div>
+        </div>
+        <button class="btn-config-save" onclick="salvarConfig()">Salvar configurações</button>
+      </div>
+
+    </div>
+
+    <nav class="nav">
+      <button class="nav-btn active" onclick="irPara('resumo',this)">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Resumo
+      </button>
+      <button class="nav-btn" onclick="irPara('historico',this)">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Histórico
+      </button>
+      <button class="nav-btn" onclick="irPara('visao',this)">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Visão Geral
+      </button>
+      <button class="nav-btn" onclick="irPara('projecao',this)">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Projeção
+      </button>
+      <button class="nav-btn" onclick="irPara('config',this)">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Config
+      </button>
+    </nav>
+  </div>
+
+  <!-- FAB -->
+  <div class="fab-wrap">
+    <div class="fab-mini-wrap hidden" id="fab-menu">
+      <div class="fab-mini">
+        <span class="fab-mini-label">✏️ Lançamento manual</span>
+        <button class="fab-mini-btn" style="background:var(--accent);color:#0f1923" onclick="abrirModal(null);closeFab()">✏️</button>
+      </div>
+    </div>
+    <button class="fab" id="fab-main" onclick="toggleFab()">+</button>
+  </div>
+</div>
+
+<!-- MODAL: LANÇAMENTO / EDIÇÃO -->
+<div class="overlay" id="modal-overlay" onclick="fecharModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Novo lançamento</div>
+      <button class="modal-close" onclick="fecharModal()">×</button>
+    </div>
+    <div class="tipo-toggle">
+      <button class="tipo-btn active-saida" onclick="setTipo('Saída',this)">Saída</button>
+      <button class="tipo-btn" onclick="setTipo('Entrada',this)">Entrada</button>
+      <button class="tipo-btn" onclick="setTipo('Investimento',this)">Investimento</button>
+    </div>
+    <input type="hidden" id="f-tipo" value="Saída">
+    <input type="hidden" id="f-id" value="">
+    <div class="field-row">
+      <div class="field"><label>Categoria</label><select id="f-cat" onchange="atualizarSubs()"></select></div>
+      <div class="field"><label>Subcategoria</label><select id="f-sub" onchange="atualizarDescs()"></select></div>
+    </div>
+    <div class="field"><label>Descrição</label><select id="f-desc"></select></div>
+    <div class="field-row">
+      <div class="field"><label>Valor (R$)</label><input type="number" id="f-valor" placeholder="0,00" min="0.01" step="0.01" inputmode="decimal"></div>
+      <div class="field"><label>Data da compra</label><input type="date" id="f-data"></div>
+    </div>
+
+    <!-- Bloco cartão/pix -->
+    <div id="bloco-pagamento">
+      <label style="display:block;font-size:12px;color:var(--muted);font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Pagamento</label>
+      <div class="pag-toggle">
+        <button class="pag-btn active" onclick="setPag('Cartão',this)">💳 Cartão</button>
+        <button class="pag-btn" onclick="setPag('Pix/Débito',this)">⚡ Pix / Débito</button>
+      </div>
+      <input type="hidden" id="f-pag" value="Cartão">
+
+      <!-- Info fatura — aparece só para cartão -->
+      <div id="info-fatura" class="info-box" style="margin-bottom:12px"></div>
+
+      <!-- Parcelas -->
+      <div id="bloco-parcelas" class="field-row">
+        <div class="field"><label>Parcela atual</label><input type="number" id="f-parc-atual" value="1" min="1" inputmode="numeric"></div>
+        <div class="field"><label>Total parcelas</label><input type="number" id="f-parc-total" value="1" min="1" inputmode="numeric"></div>
+      </div>
+    </div>
+
+    <div class="field"><label>Observação</label><input type="text" id="f-obs" placeholder="Opcional"></div>
+    <!-- Recorrente -->
+    <div id="bloco-recorrente" class="recorrente-row">
+      <label for="f-recorrente">🔁 Lançamento recorrente</label>
+      <div class="toggle-wrap">
+        <input type="checkbox" id="f-recorrente" onchange="toggleRecorrente(this)">
+        <div id="f-recorrente-meses-wrap" class="hidden" style="display:flex;align-items:center;gap:6px">
+          <input type="number" id="f-recorrente-meses" value="12" min="1" max="60" style="width:60px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 8px;color:var(--text);text-align:center" inputmode="numeric">
+          <span style="font-size:12px;color:var(--muted)">meses</span>
+        </div>
+      </div>
+    </div>
+    <button class="btn-confirm" id="btn-confirmar" onclick="salvarLancamento()">Confirmar</button>
+    <button class="delete-btn hidden" id="btn-deletar" onclick="deletarLancamento()">🗑️ Excluir lançamento</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+// CONFIGURAÇÕES
+// ══════════════════════════════════════════════════
+const CATS={
+  "Saída":{
+    "Contas":{"Internet/Celular":["Tim","Vivo","Tim + Vivo","Claro"],"Gás":["Gás cozinha"],"Energia":["Energia elétrica"],"Água":["Água e esgoto"],"TV/Streaming":["TV a cabo"],"Outra":["Taxa bancária","Outra conta"]},
+    "Financiamento":{"Terreno":["Parcela terreno","Amortização"],"Carro":["Parcela carro"],"Outro":["Parcela financiamento"]},
+    "Educação":{"Escola":["Mensalidade escola","Material escolar"],"Faculdade":["Mensalidade faculdade"],"Cursos":["Curso online","Idiomas"]},
+    "Alimentação":{"Restaurante":["Almoço","Jantar","Lanchonete"],"Bar":["Happy hour"],"Delivery":["iFood","Rappi","Uber Eats"],"Café/Padaria":["Café da manhã","Padaria"]},
+    "Mercado":{"Supermercado":["Compras mensais","Atacadão"],"Hortifruti":["Feira","Sacolão"],"Açougue":["Carne"]},
+    "Saúde":{"Farmácia":["Remédios","Vitaminas"],"Médico":["Consulta médica"],"Dentista":["Consulta dentista"],"Terapia":["Psicólogo"]},
+    "Transporte":{"Combustível":["Gasolina","Etanol"],"Aplicativos":["Uber","99"],"Manutenção":["Revisão","Troca de óleo"],"Estacionamento":["Estacionamento","Pedágio"]},
+    "Lazer":{"Streaming":["Netflix","Spotify","Disney+"],"Shows":["Ingresso show"],"Fiel Torcedor":["Mensalidade clube"],"Cinema":["Cinema"]},
+    "Cuid. Pessoais":{"Academia":["Mensalidade academia"],"Salão/Barbearia":["Corte de cabelo","Manicure"],"Cosméticos":["Perfume","Cosméticos"]},
+    "Pets":{"Ração/Petshop":["Ração","Petshop"],"Veterinário":["Consulta vet","Vacina"]},
+    "Compras":{"Vestuário":["Roupas","Calçados"],"Eletrônicos":["Celular","Eletrônico"],"Presentes":["Presente"],"Outros":["Outra compra"]},
+    "Impostos":{"IR":["IR mensal"],"IPVA":["IPVA parcelado"],"Contabilidade":["Honorários contador"]},
+    "Transferências":{"Dízimo":["Dízimo","Oferta"],"Felipe":["Repasse Felipe"],"Flávia":["Repasse Flávia"],"Saques":["Saque ATM"]},
+    "Casa":{"Decoração":["Decoração","Móveis"],"Manutenção":["Reparo","Manutenção geral"]},
+    "Viagem":{"Passagem":["Passagem aérea"],"Hospedagem":["Hotel","Airbnb"],"Câmbio":["Dólar","Euro"]},
+    "Seguros":{"Auto":["Seguro automóvel"],"Residencial":["Seguro residencial"]},
+    "Outros":{"Outros":["Despesa extra","Outros"]},
+  },
+  "Entrada":{
+    "Salário":{"Salário":["Salário Líquido"],"Adiantamento":["Adiantamento quinzenal"]},
+    "Extras":{"Bônus/PLR":["PLR","Bônus"],"Férias":["Férias + 1/3"],"13º":["1ª parcela 13º","2ª parcela 13º"]},
+    "Repasses":{"Repasse":["Repasse Flávia","Repasse familiar"]},
+    "Outros":{"Outros":["Freelance","Rendimento","Outros"]},
+  },
+  "Investimento":{
+    "Renda Variável":{"Ações/FIIs":["Aporte Renda Variável","Compra ações"]},
+    "Renda Fixa":{"CDB/LCI/LCA":["CDB","LCI","LCA"]},
+    "Tesouro Direto":{"Tesouro":["Tesouro Selic","Tesouro IPCA+"]},
+    "Previdência":{"PGBL/VGBL":["Previdência Privada","PGBL"]},
+  }
+};
+const EMOJI={"Contas":"⚡","Financiamento":"🏗️","Educação":"📚","Alimentação":"🍽️","Mercado":"🛒","Saúde":"❤️","Transporte":"🚗","Lazer":"🎉","Cuid. Pessoais":"✨","Pets":"🐾","Compras":"🛍️","Impostos":"📋","Transferências":"↔️","Casa":"🏠","Viagem":"✈️","Seguros":"🛡️","Outros":"📌","Salário":"💵","Extras":"⭐","Repasses":"💸","Renda Variável":"📈","Renda Fixa":"🔒","Tesouro Direto":"🏛️","Previdência":"🏦"};
+const COR={"Contas":"#0099ff","Financiamento":"#a855f7","Educação":"#f97316","Alimentação":"#00c896","Mercado":"#22c55e","Saúde":"#ff5252","Transporte":"#38bdf8","Lazer":"#ffb830","Cuid. Pessoais":"#f472b6","Pets":"#92400e","Compras":"#8b5cf6","Impostos":"#64748b","Transferências":"#475569","Casa":"#84cc16","Viagem":"#06b6d4","Seguros":"#6366f1","Outros":"#94a3b8","Salário":"#00c896","Extras":"#ffb830","Repasses":"#0099ff","Renda Variável":"#0099ff","Renda Fixa":"#a855f7","Tesouro Direto":"#22c55e","Previdência":"#f472b6"};
+const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const MESES_ABR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+// ══════════════════════════════════════════════════
+// ESTADO
+// ══════════════════════════════════════════════════
+let SCRIPT_URL = '';
+let TOKEN = '';
+let USER = { nome:'', email:'', dia_fechamento:5 };
+let lancamentos = [];
+let metas = {"Contas":800,"Financiamento":3100,"Educação":1150,"Alimentação":400,"Mercado":800,"Saúde":150,"Transporte":400,"Lazer":200,"Cuid. Pessoais":200,"Pets":120,"Compras":350,"Impostos":700,"Transferências":1000,"Casa":200,"Viagem":0,"Seguros":264,"Outros":300};
+let curMes = new Date().getMonth(), curAno = new Date().getFullYear();
+let histMes = new Date().getMonth(), histAno = new Date().getFullYear();
+let histFiltro = 'Todos', tipoSel = 'Saída', pagSel = 'Cartão';
+let visaoTab = 'fluxo', fabAberto = false, editandoId = null;
+
+// Dia de fechamento lido do perfil do usuário
+function getDiaFechamento() { return Number(USER.dia_fechamento) || 5; }
+
+// ══════════════════════════════════════════════════
+// FATURA — Lógica parametrizável
+// ══════════════════════════════════════════════════
+function faturaDoLancamento(l) {
+  if (l.pagamento !== 'Cartão') return null;
+  const dataStr = String(l.data || '').substring(0, 10);
+  const dt  = new Date(dataStr + 'T12:00:00');
+  const dia = dt.getDate(), m = dt.getMonth(), y = dt.getFullYear();
+
+  // Parcelas geradas automaticamente (dia 1) já estão no mês correto — não deslocar
+  if (isParcelaGerada && isParcelaGerada(l)) {
+    return {mes: m, ano: y};
   }
 
-  if (!getProp('USERS_SHEET_ID')) {
-    const ss = SpreadsheetApp.create(APP_NAME + ' — Usuários');
-    const s  = ss.getActiveSheet();
-    s.setName('Usuários');
-    s.appendRow(['id','nome','email','senha_hash','salt','status','sheet_id',
-                 'dia_fechamento','criado_em','aprovado_em',
-                 'tentativas','bloqueado_ate','ultimo_login']);
-    s.getRange(1,1,1,13).setFontWeight('bold').setBackground('#1f2f3a').setFontColor('#fff');
-    // Aba de logs
-    const sLog = ss.insertSheet('Logs');
-    sLog.appendRow(['timestamp','tipo','email','detalhes']);
-    sLog.getRange(1,1,1,4).setFontWeight('bold').setBackground('#1f2f3a').setFontColor('#fff');
-    // Aba de tokens revogados
-    const sTok = ss.insertSheet('Tokens_Revogados');
-    sTok.appendRow(['token_hash','revogado_em','motivo']);
-    sTok.getRange(1,1,1,3).setFontWeight('bold').setBackground('#1f2f3a').setFontColor('#fff');
-    // Aba de reset de senha
-    const sReset = ss.insertSheet('Reset_Senha');
-    sReset.appendRow(['email','token','expira_em','usado']);
-    sReset.getRange(1,1,1,4).setFontWeight('bold').setBackground('#1f2f3a').setFontColor('#fff');
-    setProp('USERS_SHEET_ID', ss.getId());
-    Logger.log('Planilha criada: ' + ss.getUrl());
-  } else {
-    // Garante abas extras na planilha existente
-    const ss = SpreadsheetApp.openById(getProp('USERS_SHEET_ID'));
-    ['Logs','Tokens_Revogados','Reset_Senha'].forEach(nome => {
-      if (!ss.getSheetByName(nome)) {
-        const s = ss.insertSheet(nome);
-        if (nome === 'Logs') s.appendRow(['timestamp','tipo','email','detalhes']);
-        if (nome === 'Tokens_Revogados') s.appendRow(['token_hash','revogado_em','motivo']);
-        if (nome === 'Reset_Senha') s.appendRow(['email','token','expira_em','usado']);
-        s.getRange(1,1,1,s.getLastColumn()).setFontWeight('bold').setBackground('#1f2f3a').setFontColor('#fff');
-        Logger.log('Aba criada: ' + nome);
-      }
-    });
-    Logger.log('Planilha existente mantida: ' + getProp('USERS_SHEET_ID'));
+  // Compra avulsa no cartão: verifica dia de fechamento
+  if (dia > getDiaFechamento()) {
+    return m === 11 ? {mes:0, ano:y+1} : {mes:m+1, ano:y};
   }
-  Logger.log('Setup OK!');
+  return {mes:m, ano:y};
 }
 
-// ════════════════════════════════════════════════════════════════════
-// APROVAÇÃO
-// ════════════════════════════════════════════════════════════════════
-function aprovarUsuario() {
-  const EMAIL = 'felipediascosta7@gmail.com';
-  const sheet = getUsersSheet();
-  const data  = sheet.getDataRange().getValues();
-  const hdrs  = data[0];
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][2]).toLowerCase().trim() === EMAIL.toLowerCase().trim()) {
-      if (data[i][hdrs.indexOf('status')] === 'ativo') {
-        Logger.log('Usuário já está ativo.');
-        return;
-      }
-      const nome    = data[i][1];
-      const sheetId = data[i][hdrs.indexOf('sheet_id')] || criarSheetUsuario(nome, EMAIL);
-      sheet.getRange(i+1, hdrs.indexOf('status') + 1).setValue('ativo');
-      sheet.getRange(i+1, hdrs.indexOf('sheet_id') + 1).setValue(sheetId);
-      sheet.getRange(i+1, hdrs.indexOf('aprovado_em') + 1).setValue(new Date().toISOString());
-      notificarUsuario(EMAIL, nome);
-      log('aprovacao', EMAIL, 'Usuário aprovado pelo admin');
-      Logger.log('Aprovado! Sheet: ' + sheetId);
-      return;
-    }
-  }
-  Logger.log('Usuário não encontrado: ' + EMAIL);
-}
-
-function diagnostico() {
-  Logger.log('USERS_SHEET_ID: ' + getProp('USERS_SHEET_ID'));
-  Logger.log('TOKEN_SECRET: ' + (getProp('TOKEN_SECRET') ? 'OK' : 'FALTANDO'));
-  try {
-    const sheet = getUsersSheet();
-    const data  = sheet.getDataRange().getValues();
-    Logger.log('Total usuários: ' + (data.length - 1));
-    data.slice(1).forEach((r,i) => Logger.log('  ' + r[2] + ' | ' + r[5] + ' | sheet: ' + (r[6]?'OK':'VAZIO')));
-  } catch(e) { Logger.log('ERRO: ' + e.message); }
-}
-
-function listarPendentes() {
-  const sheet = getUsersSheet();
-  const data  = sheet.getDataRange().getValues();
-  const hdrs  = data[0];
-  let count = 0;
-  data.slice(1).forEach(r => {
-    if (r[hdrs.indexOf('status')] === 'pendente') {
-      Logger.log(r[1] + ' — ' + r[2]);
-      count++;
-    }
+function lancamentosDaFatura(m, y) {
+  return lancamentos.filter(l => {
+    const f = faturaDoLancamento(l);
+    return f && f.mes === m && f.ano === y;
   });
-  if (!count) Logger.log('Nenhum pendente.');
 }
 
-// ════════════════════════════════════════════════════════════════════
-// UTILITÁRIOS
-// ════════════════════════════════════════════════════════════════════
-function R(data) {
-  return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
+// ══════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════
+function init() {
+  SCRIPT_URL = localStorage.getItem('cf_script_url') || '';
+  TOKEN      = localStorage.getItem('cf_token')      || '';
+  const u    = localStorage.getItem('cf_user');
+  if (u) USER = JSON.parse(u);
+  const m = localStorage.getItem('cf_metas');
+  if (m) metas = JSON.parse(m);
+
+  if (!SCRIPT_URL) {
+    // Primeira vez: pede a URL do Apps Script
+    show('setup-screen');
+  } else if (!TOKEN) {
+    // URL ok mas sem sessão: mostra login
+    show('auth-screen');
+  } else {
+    // Sessão ativa: entra direto
+    entrarNoApp();
+  }
 }
 
-function getUsersSheet() {
-  const id = getProp('USERS_SHEET_ID');
-  if (!id) throw new Error('Execute setupInicial() primeiro.');
-  const ss = SpreadsheetApp.openById(id);
-  return ss.getSheetByName('Usuários') || ss.getSheets()[0];
+function show(id) {
+  ['setup-screen','auth-screen','app-shell'].forEach(s =>
+    document.getElementById(s).classList.toggle('hidden', s !== id)
+  );
 }
 
-function getAba(nome) {
-  const ss = SpreadsheetApp.openById(getProp('USERS_SHEET_ID'));
-  return ss.getSheetByName(nome);
+// ── Salvar URL do servidor ──────────────────────────────────────────
+function saveConfig() {
+  const url = document.getElementById('script-url').value.trim();
+  if (!url.startsWith('https://script.google.com')) { alert('URL inválida.'); return; }
+  localStorage.setItem('cf_script_url', url);
+  SCRIPT_URL = url;
+  show('auth-screen');
 }
 
-function log(tipo, email, detalhes) {
+function trocarURL() {
+  localStorage.removeItem('cf_script_url');
+  localStorage.removeItem('cf_token');
+  localStorage.removeItem('cf_user');
+  location.reload();
+}
+
+// ── Tabs login/cadastro ─────────────────────────────────────────────
+function setAuthTab(tab) {
+  ['login','cadastro','reset'].forEach(t => {
+    const el = document.getElementById('auth-' + t);
+    if (el) el.classList.toggle('hidden', t !== tab);
+  });
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-cadastro').classList.toggle('active', tab === 'cadastro');
+  // Reset step1 ao abrir tab reset
+  if (tab === 'reset') {
+    document.getElementById('reset-step1').classList.remove('hidden');
+    document.getElementById('reset-step2').classList.add('hidden');
+    const e1 = document.getElementById('reset-erro');
+    const e2 = document.getElementById('reset-ok');
+    if (e1) e1.style.display = 'none';
+    if (e2) e2.style.display = 'none';
+  }
+}
+
+// ── LOGIN ───────────────────────────────────────────────────────────
+async function fazerLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value;
+  const erro  = document.getElementById('login-erro');
+  const btn   = document.getElementById('btn-login');
+  if (!email || !senha) { erroAuth(erro, 'Preencha e-mail e senha.'); return; }
+
+  // Pega token do Turnstile
+  const tsEl = document.querySelector('#turnstile-login [name="cf-turnstile-response"]');
+  const tsToken = tsEl ? tsEl.value : '';
+  if (!tsToken) { erroAuth(erro, 'Verificação de segurança não concluída. Aguarde.'); return; }
+
+  btn.textContent = 'Entrando...'; btn.classList.add('loading');
   try {
-    const s = getAba('Logs');
-    if (s) s.appendRow([new Date().toISOString(), tipo, email, detalhes]);
-  } catch(e) {}
+    const r = await api('login', { email, senha, tsToken });
+    if (!r.ok) { erroAuth(erro, r.error); btn.textContent='Entrar'; btn.classList.remove('loading'); return; }
+    TOKEN = r.token;
+    USER  = { nome: r.nome, email, dia_fechamento: r.dia_fechamento || 5 };
+    localStorage.setItem('cf_token', TOKEN);
+    localStorage.setItem('cf_user',  JSON.stringify(USER));
+    erro.style.display = 'none';
+    entrarNoApp();
+  } catch(e) {
+    erroAuth(erro, 'Erro de conexão. Verifique sua internet.');
+    btn.textContent = 'Entrar'; btn.classList.remove('loading');
+    if (window.turnstile) window.turnstile.reset('#turnstile-login');
+  }
 }
 
-function gerarSalt() {
-  const b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Math.random() + '' + Date.now());
-  return b.map(x => ('0'+(x&0xFF).toString(16)).slice(-2)).join('').substring(0,32);
-}
+// ── CADASTRO ────────────────────────────────────────────────────────
+async function fazerCadastro() {
+  const nome   = document.getElementById('cad-nome').value.trim();
+  const email  = document.getElementById('cad-email').value.trim();
+  const senha  = document.getElementById('cad-senha').value;
+  const senha2 = document.getElementById('cad-senha2').value;
+  const erro   = document.getElementById('cad-erro');
+  const ok     = document.getElementById('cad-ok');
+  const btn    = document.getElementById('btn-cadastro');
+  erro.style.display = 'none'; ok.style.display = 'none';
+  if (!nome||!email||!senha) { erroAuth(erro,'Preencha todos os campos.'); return; }
+  if (senha !== senha2)      { erroAuth(erro,'As senhas não coincidem.'); return; }
+  if (senha.length < 8)      { erroAuth(erro,'Senha deve ter ao menos 8 caracteres.'); return; }
+  if (!/[A-Z]/.test(senha))  { erroAuth(erro,'Senha deve ter ao menos uma letra maiúscula.'); return; }
+  if (!/[0-9]/.test(senha))  { erroAuth(erro,'Senha deve ter ao menos um número.'); return; }
+  // Pega token do Turnstile
+  const tsCadEl = document.querySelector('#turnstile-cadastro [name="cf-turnstile-response"]');
+  const tsCadToken = tsCadEl ? tsCadEl.value : '';
+  if (!tsCadToken) { erroAuth(erro, 'Verificação de segurança não concluída. Aguarde.'); return; }
 
-function hashSenha(senha, salt) {
-  const key = salt ? (salt + senha + (getProp('TOKEN_SECRET') || '')) : senha;
-  const b   = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, key);
-  return b.map(x => ('0'+(x&0xFF).toString(16)).slice(-2)).join('');
-}
-
-function hashToken(token) {
-  const b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token);
-  return b.map(x => ('0'+(x&0xFF).toString(16)).slice(-2)).join('').substring(0,32);
-}
-
-function gerarToken(userId) {
-  const exp     = Date.now() + TOKEN_DIAS * 86400000;
-  const payload = userId + ':' + exp;
-  const secret  = getProp('TOKEN_SECRET') || 'fallback';
-  const sig     = Utilities.base64Encode(
-    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, payload + secret)
-  ).substring(0,16);
-  return Utilities.base64Encode(payload + ':' + sig);
-}
-
-function validarToken(token) {
-  if (!token) return null;
+  btn.textContent = 'Enviando...'; btn.classList.add('loading');
   try {
-    // Verifica se foi revogado
-    const th  = hashToken(token);
-    const rev = getAba('Tokens_Revogados');
-    if (rev) {
-      const revData = rev.getDataRange().getValues();
-      for (let i = 1; i < revData.length; i++) {
-        if (revData[i][0] === th) return null; // token revogado
+    const r = await api('cadastro', { nome, email, senha, tsToken: tsCadToken });
+    btn.textContent = 'Criar conta'; btn.classList.remove('loading');
+    if (!r.ok) { erroAuth(erro, r.error); return; }
+    ok.textContent = '✅ ' + r.msg;
+    ok.style.display = 'block';
+    document.getElementById('cad-nome').value = '';
+    document.getElementById('cad-email').value = '';
+    document.getElementById('cad-senha').value = '';
+    document.getElementById('cad-senha2').value = '';
+  } catch(e) {
+    erroAuth(erro, 'Erro de conexão.');
+    btn.textContent = 'Criar conta'; btn.classList.remove('loading');
+  }
+}
+
+function erroAuth(el, msg) { el.textContent = msg; el.style.display = 'block'; }
+
+function checaSenha(input) {
+  const s   = input.value;
+  const el  = document.getElementById('senha-strength');
+  if (!el) return;
+  const checks = [
+    [s.length >= 8,      '8+ caracteres'],
+    [/[A-Z]/.test(s),   '1 maiúscula'],
+    [/[0-9]/.test(s),   '1 número'],
+    [/[^A-Za-z0-9]/.test(s), '1 símbolo (extra)'],
+  ];
+  const ok    = checks.filter(c=>c[0]).length;
+  const cores = ['var(--danger)','var(--danger)','var(--warn)','var(--accent)'];
+  const labels= ['Muito fraca','Fraca','Boa','Forte'];
+  el.textContent = ok < 3 ? '⚠️ ' + labels[ok] + ' — falta: ' + checks.filter(c=>!c[0]).map(c=>c[1]).join(', ') : '✅ ' + labels[Math.min(ok,3)];
+  el.style.color = cores[Math.min(ok,3)];
+}
+
+// ── LOGOUT ──────────────────────────────────────────────────────────
+function fazerLogout() {
+  if (!confirm('Sair da sua conta?')) return;
+  localStorage.removeItem('cf_token');
+  localStorage.removeItem('cf_user');
+  TOKEN = ''; USER = {};
+  show('auth-screen');
+}
+
+// ── ENTRAR NO APP ───────────────────────────────────────────────────
+function entrarNoApp() {
+  show('app-shell');
+  document.getElementById('f-data').value = hoje();
+  // Preenche nome na config
+  if (document.getElementById('cfg-nome')) {
+    document.getElementById('cfg-nome').textContent = USER.nome || '–';
+    document.getElementById('cfg-email').textContent = USER.email || '–';
+    document.getElementById('cfg-dia-fechamento').value = getDiaFechamento();
+  }
+  initForm();
+  carregarDados();
+}
+
+// ── SALVAR CONFIG (dia fechamento) ──────────────────────────────────
+async function salvarConfig() {
+  const dia = parseInt(document.getElementById('cfg-dia-fechamento').value);
+  if (!dia || dia < 1 || dia > 28) { alert('Dia inválido (1 a 28).'); return; }
+  USER.dia_fechamento = dia;
+  localStorage.setItem('cf_user', JSON.stringify(USER));
+  try {
+    await apiAuth('config', { config: { dia_fechamento: dia } });
+    alert('✅ Configurações salvas!');
+    renderAll();
+  } catch(e) { alert('Salvo localmente. Sincronize depois.'); }
+}
+
+// ══════════════════════════════════════════════════
+// API — todas as chamadas passam token
+// ══════════════════════════════════════════════════
+async function api(action, body) {
+  const r = await fetch(SCRIPT_URL + '?action=' + action, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+async function apiAuth(action, body = {}) {
+  body.token = TOKEN;
+  const r = await fetch(SCRIPT_URL + '?action=' + action, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+  const data = await r.json();
+  // Detecta sessão expirada ou não autorizado
+  if (data.error && (
+    data.error.includes('Não autorizado') ||
+    data.error.includes('sessão expirada') ||
+    data.error.includes('Sessão expirada')
+  )) {
+    // Tenta renovar antes de deslogar
+    try {
+      const r2 = await fetch(SCRIPT_URL + '?action=refresh&token=' + encodeURIComponent(TOKEN));
+      const d2 = await r2.json();
+      if (d2.ok && d2.token) {
+        TOKEN = d2.token;
+        localStorage.setItem('cf_token', TOKEN);
+        // Retenta a requisição original
+        body.token = TOKEN;
+        const r3 = await fetch(SCRIPT_URL + '?action=' + action, { method:'POST', body:JSON.stringify(body) });
+        return r3.json();
+      }
+    } catch(e2) {}
+    // Renovação falhou — desloga
+    localStorage.removeItem('cf_token');
+    localStorage.removeItem('cf_user');
+    TOKEN = ''; USER = {};
+    show('auth-screen');
+    throw new Error('Sessão expirada');
+  }
+  return data;
+}
+
+async function apiGet() {
+  try {
+    const url = SCRIPT_URL + '?action=get&token=' + encodeURIComponent(TOKEN);
+    const r = await fetch(url);
+    const text = await r.text();
+    console.log('apiGet resposta bruta:', text.substring(0, 200));
+    const data = JSON.parse(text);
+    if (data.error && (data.error.includes('Não autorizado') || data.error.includes('xpirada'))) {
+      // Tenta renovar token
+      try {
+        const r2 = await fetch(SCRIPT_URL + '?action=refresh&token=' + encodeURIComponent(TOKEN));
+        const d2 = await r2.json();
+        if (d2.ok && d2.token) {
+          TOKEN = d2.token;
+          localStorage.setItem('cf_token', TOKEN);
+          // Retenta
+          const r3 = await fetch(SCRIPT_URL + '?action=get&token=' + encodeURIComponent(TOKEN));
+          return JSON.parse(await r3.text());
+        }
+      } catch(e2) {}
+      // Renovação falhou
+      localStorage.removeItem('cf_token');
+      localStorage.removeItem('cf_user');
+      TOKEN = ''; USER = {};
+      show('auth-screen');
+      throw new Error('Sessão expirada');
+    }
+    return data;
+  } catch(e) {
+    if (e.message !== 'Sessão expirada') console.error('apiGet erro:', e.message);
+    throw e;
+  }
+}
+
+// ══════════════════════════════════════════════════
+// SYNC
+// ══════════════════════════════════════════════════
+function setSyncStatus(s, msg) {
+  document.getElementById('sync-dot').className = 'sync-dot ' + s;
+  document.getElementById('sync-text').textContent = msg;
+}
+
+// Renova token automaticamente se estiver próximo de vencer (< 1 dia restante)
+async function renovarTokenSeNecessario() {
+  try {
+    const decoded = atob(TOKEN);
+    const partes  = decoded.split(':');
+    if (partes.length < 2) return;
+    const expira  = parseInt(partes[1]);
+    const umDia   = 24 * 60 * 60 * 1000;
+    if (expira - Date.now() < umDia) {
+      // Token vence em menos de 1 dia — renova silenciosamente
+      const r = await fetch(SCRIPT_URL + '?action=refresh&token=' + encodeURIComponent(TOKEN));
+      const data = await r.json();
+      if (data.ok && data.token) {
+        TOKEN = data.token;
+        localStorage.setItem('cf_token', TOKEN);
+        console.log('Token renovado automaticamente');
       }
     }
-    const dec    = Utilities.newBlob(Utilities.base64Decode(token)).getDataAsString();
-    const parts  = dec.split(':');
-    if (parts.length < 3) return null;
-    const userId = parts[0];
-    const exp    = parseInt(parts[1]);
-    const sig    = parts[2];
-    if (Date.now() > exp) return null;
-    const secret = getProp('TOKEN_SECRET') || 'fallback';
-    const sigOk  = Utilities.base64Encode(
-      Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, userId + ':' + exp + secret)
-    ).substring(0,16);
-    if (sig !== sigOk) return null;
-    const sheet = getUsersSheet();
-    const data  = sheet.getDataRange().getValues();
-    const hdrs  = data[0];
-    for (let i = 1; i < data.length; i++) {
-      const row = {}; hdrs.forEach((h,j) => row[h] = data[i][j]);
-      if (String(row.id) === String(userId) && row.status === 'ativo') return row;
+  } catch(e) {
+    // Falha silenciosa — não interrompe o fluxo
+  }
+}
+
+async function carregarDados() {
+  setSyncStatus('loading', 'Sincronizando...');
+  // Tenta renovar token antes de carregar
+  if (TOKEN) await renovarTokenSeNecessario();
+  try {
+    const data = await apiGet();
+    lancamentos = data.lancamentos || [];
+    if (data.metas) { metas = {...metas, ...data.metas}; localStorage.setItem('cf_metas', JSON.stringify(metas)); }
+    // Atualiza dia fechamento do servidor
+    if (data.config && data.config.dia_fechamento) {
+      USER.dia_fechamento = Number(data.config.dia_fechamento);
+      localStorage.setItem('cf_user', JSON.stringify(USER));
+      const el = document.getElementById('cfg-dia-fechamento');
+      if (el) el.value = USER.dia_fechamento;
     }
+    setSyncStatus('ok', 'Sincronizado · ' + horaAtual());
+    renderAll();
+  } catch(e) {
+    if (e.message !== 'Sessão expirada') setSyncStatus('err', 'Erro ao sincronizar');
+  }
+}
+
+async function enviarLancamento(d) {
+  console.log('Enviando lançamento... TOKEN:', TOKEN ? 'presente' : 'AUSENTE');
+  const r = await apiAuth('add', d);
+  console.log('Resposta:', JSON.stringify(r));
+  if (!r.ok) console.error('Erro ao salvar:', r.error);
+  return r;
+}
+async function atualizarLancamentoRemoto(d){ return apiAuth('update', d); }
+async function deletarLancamentoRemoto(id) { return apiAuth('delete', {id}); }
+async function salvarMetasRemoto()         { return apiAuth('metas', {metas}); }
+
+// ══════════════════════════════════════════════════
+// NAVEGAÇÃO
+// ══════════════════════════════════════════════════
+function irPara(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  btn.classList.add('active');
+  document.getElementById('content').scrollTop = 0;
+  if (id === 'visao')    renderVisao();
+  if (id === 'projecao') renderProjecao();
+  if (id === 'config') {
+    document.getElementById('cfg-nome').textContent  = USER.nome  || '–';
+    document.getElementById('cfg-email').textContent = USER.email || '–';
+    document.getElementById('cfg-dia-fechamento').value = getDiaFechamento();
+    // Restaura salário e descontos
+    if (USER.salario_bruto) document.getElementById('cfg-salario-bruto').value = USER.salario_bruto;
+    if (USER.dependentes !== undefined) document.getElementById('cfg-dependentes').value = USER.dependentes||0;
+    if (USER.descontos_extras) { descontosExtras = USER.descontos_extras; renderDescontos(); }
+    calcularSalario();
+  }
+}
+function renderAll() { renderResumo(); renderHistorico(); if (visaoTab) renderVisao(); renderProjecao(); }
+
+// ══════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════
+function getLancs(m, y) {
+  return lancamentos.filter(l => {
+    // Suporta tanto "2026-07-28" quanto "2026-07-28T03:00:00.000Z"
+    const dataStr = String(l.data || '').substring(0, 10); // pega só YYYY-MM-DD
+    const dt = new Date(dataStr + 'T12:00:00');
+    return dt.getMonth() === m && dt.getFullYear() === y;
+  });
+}
+function sum(list, tipo) { return list.filter(l=>l.tipo===tipo).reduce((a,l)=>a+Number(l.valor),0); }
+function sumCat(list, cat) { return list.filter(l=>l.tipo==='Saída'&&l.categoria===cat).reduce((a,l)=>a+Number(l.valor),0); }
+function fmt(v) { return 'R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function pctFmt(v) { return Math.round(v*100)+'%'; }
+function hoje() { return new Date().toISOString().split('T')[0]; }
+function horaAtual() { return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function chipPag(l) {
+  if (l.tipo !== 'Saída') return '';
+  const cc = l.pagamento === 'Cartão';
+  const parc = (l.parcTotal && Number(l.parcTotal)>1) ? `<span class="chip chip-parc">${l.parcAtual}/${l.parcTotal}x</span>` : '';
+  return `<span class="chip ${cc?'chip-cc':'chip-pix'}">${cc?'💳':'⚡'} ${l.pagamento||''}</span>${parc}`;
+}
+
+// ══════════════════════════════════════════════════
+// FAB
+// ══════════════════════════════════════════════════
+function toggleFab() {
+  fabAberto = !fabAberto;
+  document.getElementById('fab-menu').classList.toggle('hidden', !fabAberto);
+  document.getElementById('fab-main').textContent = fabAberto ? '×' : '+';
+}
+function closeFab() {
+  fabAberto = false;
+  document.getElementById('fab-menu').classList.add('hidden');
+  document.getElementById('fab-main').textContent = '+';
+}
+
+// ══════════════════════════════════════════════════
+// RESUMO
+// ══════════════════════════════════════════════════
+function mudarMes(d) { curMes+=d; if(curMes>11){curMes=0;curAno++;} if(curMes<0){curMes=11;curAno--;} renderResumo(); }
+
+function renderResumo() {
+  document.getElementById('mes-nome').textContent = MESES[curMes] + ' ' + curAno;
+  const list = getLancs(curMes, curAno);
+  const ent = sum(list,'Entrada'), sai = sum(list,'Saída'), inv = sum(list,'Investimento'), saldo = ent-sai-inv;
+  const pctInv = ent>0 ? inv/ent : 0;
+  const saiCC = list.filter(l=>l.tipo==='Saída'&&l.pagamento==='Cartão').reduce((a,l)=>a+Number(l.valor),0);
+  const saiPix = list.filter(l=>l.tipo==='Saída'&&l.pagamento==='Pix/Débito').reduce((a,l)=>a+Number(l.valor),0);
+
+  // Fatura que fecha este mês
+  const faturaAtual = lancamentosDaFatura(curMes, curAno);
+  const totalFatura = faturaAtual.reduce((a,l)=>a+Number(l.valor),0);
+
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Entradas</div><div class="kpi-value green">${fmt(ent)}</div></div>
+    <div class="kpi"><div class="kpi-label">Saídas</div><div class="kpi-value red">${fmt(sai)}</div></div>
+    <div class="kpi"><div class="kpi-label">Investimentos</div><div class="kpi-value blue">${fmt(inv)}<div class="kpi-sub">${pctFmt(pctInv)} da renda</div></div></div>
+    <div class="kpi"><div class="kpi-label">Saldo livre</div><div class="kpi-value ${saldo>=0?'green':'red'}">${saldo<0?'- ':''}${fmt(Math.abs(saldo))}</div></div>
+    <div class="kpi" style="grid-column:1/-1;background:#a855f715;border-color:var(--purple)">
+      <div class="kpi-label" style="color:var(--purple)">💳 Fatura cartão — vence em ${MESES[curMes]}</div>
+      <div class="kpi-value" style="color:var(--purple)">${fmt(totalFatura)}</div>
+      <div class="kpi-sub">${faturaAtual.length} lançamentos · inclui compras após dia ${getDiaFechamento()}/${MESES_ABR[curMes===0?11:curMes-1]}</div>
+    </div>`;
+
+  const al = [];
+  if (sai>0) al.push({tipo:'info',icon:'💳',txt:`Cartão: <strong>${fmt(saiCC)}</strong><span> · Pix/Déb: <strong style="color:var(--text)">${fmt(saiPix)}</strong></span>`});
+  const parcs = list.filter(l=>l.tipo==='Saída'&&l.pagamento==='Cartão'&&Number(l.parcTotal)>1);
+  if (parcs.length) al.push({tipo:'warn',icon:'📅',txt:`<strong>${parcs.length} compra${parcs.length>1?'s':''} parcelada${parcs.length>1?'s':''}</strong><span> no cartão</span>`});
+  if (ent>0&&pctInv<0.15&&inv>0) al.push({tipo:'warn',icon:'⚠️',txt:`Poupança em <strong>${pctFmt(pctInv)}</strong><span> — meta é 20%</span>`});
+  if (ent===0) al.push({tipo:'info',icon:'📥',txt:`<span>Nenhuma entrada registrada neste mês ainda.</span>`});
+  Object.keys(metas).forEach(cat=>{
+    const g=sumCat(list,cat), m=metas[cat]; if(!m) return;
+    const p=g/m;
+    if(p>1) al.push({tipo:'danger',icon:'🔴',txt:`<strong>${cat}</strong>: ${fmt(g)} de ${fmt(m)}<span> — acima em ${fmt(g-m)}</span>`});
+    else if(p>0.85) al.push({tipo:'warn',icon:'🟡',txt:`<strong>${cat}</strong>:<span> ${Math.round(p*100)}% do orçamento usado</span>`});
+  });
+  if (!al.length && saldo>=0) al.push({tipo:'ok',icon:'✅',txt:`<span>Tudo dentro do orçamento — saldo de </span><strong>${fmt(saldo)}</strong>`});
+  document.getElementById('alertas').innerHTML = al.map(a=>`<div class="alert ${a.tipo}"><div class="alert-icon">${a.icon}</div><div>${a.txt}</div></div>`).join('');
+
+  const cats = Object.keys(metas).filter(c=>metas[c]>0||sumCat(list,c)>0);
+  document.getElementById('barras').innerHTML = cats.map(cat=>{
+    const g=sumCat(list,cat), m=metas[cat]||0, p=m>0?Math.min(g/m,1):(g>0?1:0), cls=g>m&&m>0?'danger':p>0.85?'warn':'ok';
+    return `<div class="prog-card"><div class="prog-header"><div class="prog-name">${EMOJI[cat]||'📌'} ${cat}</div><div class="prog-badge badge-${cls}">${cls==='danger'?'Acima':cls==='warn'?'Atenção':'OK'}</div></div><div class="prog-row"><span style="font-weight:600;color:var(--text)">${fmt(g)}</span><span>meta ${m?fmt(m):'—'}</span></div>${m>0?`<div class="prog-bar"><div class="prog-fill fill-${cls}" style="width:${Math.round(p*100)}%"></div></div>`:''}</div>`;
+  }).join('') || '<div class="empty"><div class="empty-icon">📭</div><p>Nenhum lançamento neste mês.</p></div>';
+}
+
+// ══════════════════════════════════════════════════
+// HISTÓRICO — com editar/excluir
+// ══════════════════════════════════════════════════
+function mudarMesHist(d) { histMes+=d; if(histMes>11){histMes=0;histAno++;} if(histMes<0){histMes=11;histAno--;} renderHistorico(); }
+
+function renderHistorico() {
+  document.getElementById('hist-mes-nome').textContent = MESES[histMes] + ' ' + histAno;
+  const filtros = ['Todos','Entradas','Saídas','Cartão','Pix/Débito','Parcelados','Investimentos'];
+  document.getElementById('hist-filtros').innerHTML = filtros.map(f=>`<button class="filter-chip ${histFiltro===f?'active':''}" onclick="setHistFiltro('${f}')">${f}</button>`).join('');
+  let list = [...getLancs(histMes, histAno)].sort((a,b)=>new Date(b.data)-new Date(a.data));
+  if (histFiltro==='Entradas') list=list.filter(l=>l.tipo==='Entrada');
+  else if (histFiltro==='Saídas') list=list.filter(l=>l.tipo==='Saída');
+  else if (histFiltro==='Investimentos') list=list.filter(l=>l.tipo==='Investimento');
+  else if (histFiltro==='Cartão') list=list.filter(l=>l.pagamento==='Cartão');
+  else if (histFiltro==='Pix/Débito') list=list.filter(l=>l.pagamento==='Pix/Débito');
+  else if (histFiltro==='Parcelados') list=list.filter(l=>Number(l.parcTotal)>1);
+  if (!list.length) { document.getElementById('historico-list').innerHTML='<div class="empty"><div class="empty-icon">🕐</div><p>Nenhum lançamento encontrado.</p></div>'; return; }
+
+  document.getElementById('historico-list').innerHTML = '<div class="tx-list">'+list.map(l=>{
+    const dataStr=String(l.data||'').substring(0,10); const dt=new Date(dataStr+'T12:00:00'), dd=dt.getDate().toString().padStart(2,'0')+'/'+MESES_ABR[dt.getMonth()];
+    const cor=COR[l.categoria]||'#94a3b8', vcls=l.tipo==='Entrada'?'entrada':l.tipo==='Investimento'?'inv':'saida', sig=l.tipo==='Entrada'?'+':l.tipo==='Investimento'?'▲':'-';
+    // Info de fatura para compras no cartão
+    let faturaInfo='';
+    if(l.pagamento==='Cartão'){
+      const f=faturaDoLancamento(l);
+      if(f) faturaInfo=`<span>fatura ${MESES_ABR[f.mes]}/${f.ano}</span>`;
+    }
+    const isEstorno = l.categoria === 'Estorno';
+    if (modoSelecao) {
+      return `<div class="tx" style="gap:8px">
+        <input type="checkbox" class="tx-check" ${selecionados.has(String(l.id))?'checked':''} onchange="toggleCheck('${l.id}',this)">
+        <div class="tx-icon" style="background:${cor}20">${EMOJI[l.categoria]||'📌'}</div>
+        <div class="tx-info">
+          <div class="tx-desc">${l.desc}</div>
+          <div class="tx-meta"><span>${l.categoria} · ${dd}</span>${chipPag(l)}${faturaInfo}</div>
+        </div>
+        <div class="tx-val ${vcls}">${sig} ${fmt(l.valor)}</div>
+      </div>`;
+    }
+    return `<div class="tx">
+      <div class="tx-icon" style="background:${cor}20">${EMOJI[l.categoria]||'📌'}</div>
+      <div class="tx-info">
+        <div class="tx-desc">${isEstorno?'↩️ ':''} ${l.desc}</div>
+        <div class="tx-meta"><span>${l.categoria} · ${dd}</span>${chipPag(l)}${faturaInfo}${l.obs?`<span>${l.obs}</span>`:''}</div>
+      </div>
+      <div class="tx-right">
+        <div class="tx-val ${vcls}">${sig} ${fmt(l.valor)}</div>
+        <div class="tx-actions">
+          ${l.tipo==='Saída'&&!isEstorno?`<button class="tx-btn" onclick="lancarEstorno('${l.id}')" title="Estornar">↩️</button>`:''}
+          <button class="tx-btn" onclick="abrirModal('${l.id}')" title="Editar">✏️</button>
+          <button class="tx-btn del" onclick="confirmarDelete('${l.id}')" title="Excluir">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('')+'</div>';
+}
+function setHistFiltro(f) { histFiltro=f; renderHistorico(); }
+
+// ══════════════════════════════════════════════════
+// VISÃO GERAL
+// ══════════════════════════════════════════════════
+function setVisaoTab(tab, btn) {
+  visaoTab = tab;
+  document.querySelectorAll('.inner-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('visao-fluxo').classList.toggle('hidden', tab!=='fluxo');
+  document.getElementById('visao-fatura').classList.toggle('hidden', tab!=='fatura');
+  renderVisao();
+}
+
+function renderVisao() {
+  if (visaoTab === 'fluxo') renderFluxo();
+  else renderFatura();
+}
+
+function renderFluxo() {
+  const hoje_m = new Date().getMonth(), hoje_y = new Date().getFullYear();
+  // 7 colunas: Mês | Entradas | Saídas TOTAL | ↳ Fatura CC | ↳ Invest. | Saldo
+  const COLS = '48px 1fr 1fr 1fr 1fr 1fr';
+
+  let html = `<div class="fluxo-header" style="grid-template-columns:${COLS}">
+    <span style="text-align:left">Mês</span>
+    <span>Entradas</span>
+    <span>Saídas</span>
+    <span>↳ Fatura CC</span>
+    <span>↳ Invest.</span>
+    <span>Saldo</span>
+  </div>`;
+
+  // Lógica:
+  // Saídas TOTAL = Pix/Débito + Fatura CC do mês + Investimentos
+  // Fatura CC = coluna informativa (compras cartão cuja fatura vence neste mês)
+  // Invest. = coluna informativa (aportes do mês)
+  // Saldo = acumulado: anterior + Entradas - Saídas TOTAL
+
+  let saldoAcum = 0;
+  let totEnt=0, totSai=0, totFat=0, totInv=0;
+
+  for (let m=0; m<12; m++) {
+    const listMes = getLancs(m, curAno);
+
+    const ent    = sum(listMes, 'Entrada');
+    const saiPix = listMes.filter(l=>l.tipo==='Saída'&&l.pagamento!=='Cartão').reduce((a,l)=>a+Number(l.valor),0);
+    const inv    = sum(listMes, 'Investimento');
+    const fatura = lancamentosDaFatura(m, curAno).reduce((a,l)=>a+Number(l.valor),0);
+
+    // Saídas totais = pix/débito + fatura CC que vence neste mês + investimentos
+    const saiTotal = saiPix + fatura + inv;
+    const saldoMes = saldoAcum + ent - saiTotal;
+
+    totEnt+=ent; totSai+=saiTotal; totFat+=fatura; totInv+=inv;
+
+    const isAtual  = m===hoje_m && curAno===hoje_y;
+    const temDados = ent||saiTotal||saldoAcum!==0;
+    const saldoCor = saldoMes>=0?'var(--accent)':'var(--danger)';
+
+    html += `<div class="fluxo-row ${isAtual?'atual':''}" style="grid-template-columns:${COLS}">
+      <div class="fluxo-mes">${MESES_ABR[m]}${isAtual?' ←':''}</div>
+      <div class="fluxo-val" style="color:var(--accent)">${ent>0?fmt(ent):'—'}</div>
+      <div class="fluxo-val" style="color:var(--danger);font-weight:600">${saiTotal>0?fmt(saiTotal):'—'}</div>
+      <div class="fluxo-val" style="color:var(--purple);font-size:11px">${fatura>0?fmt(fatura):'—'}</div>
+      <div class="fluxo-val" style="color:var(--accent2);font-size:11px">${inv>0?fmt(inv):'—'}</div>
+      <div class="fluxo-val" style="color:${saldoCor};font-weight:700">${temDados?(saldoMes<0?'- ':'')+fmt(Math.abs(saldoMes)):'—'}</div>
+    </div>`;
+
+    saldoAcum = saldoMes;
+  }
+
+  const saldoFinal = saldoAcum;
+  html += `<div class="fluxo-row" style="grid-template-columns:${COLS};background:var(--faint);font-weight:700;border-top:2px solid var(--border)">
+    <div class="fluxo-mes" style="font-size:11px">Ano</div>
+    <div class="fluxo-val" style="color:var(--accent)">${fmt(totEnt)}</div>
+    <div class="fluxo-val" style="color:var(--danger)">${fmt(totSai)}</div>
+    <div class="fluxo-val" style="color:var(--purple);font-size:11px">${fmt(totFat)}</div>
+    <div class="fluxo-val" style="color:var(--accent2);font-size:11px">${fmt(totInv)}</div>
+    <div class="fluxo-val" style="color:${saldoFinal>=0?'var(--accent)':'var(--danger)'}">${saldoFinal<0?'- ':''}${fmt(Math.abs(saldoFinal))}</div>
+  </div>
+  <div style="padding:10px 12px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);line-height:1.7">
+    📌 <strong>Saídas</strong> = tudo que sai (Pix/Débito + Fatura CC + Investimentos)<br>
+    💳 <strong>↳ Fatura CC</strong> = parcela do cartão que vence neste mês (fecha dia ${getDiaFechamento()})<br>
+    📈 <strong>↳ Invest.</strong> = aportes realizados no mês<br>
+    💰 <strong>Saldo</strong> = acumulado mês a mês
+  </div>`;
+
+  document.getElementById('fluxo-table').innerHTML = html;
+}
+
+function renderFatura() {
+  const hoje_m = new Date().getMonth(), hoje_y = new Date().getFullYear();
+  let html = '';
+  // Mostra faturas dos últimos 6 meses + próximos 2
+  const faturas = [];
+  for (let i=-5; i<=2; i++) {
+    let m = hoje_m + i, y = hoje_y;
+    if (m>11){m-=12;y++;} if (m<0){m+=12;y--;}
+    const items = lancamentosDaFatura(m, y);
+    faturas.push({m, y, items});
+  }
+  // Fatura atual em destaque
+  html = faturas.map(({m, y, items}) => {
+    const total = items.reduce((a,l)=>a+Number(l.valor),0);
+    const isAtual = m===hoje_m && y===hoje_y;
+    const isFuturo = (y>hoje_y)||(y===hoje_y&&m>hoje_m);
+    const labelStatus = isAtual ? '← Fatura atual' : isFuturo ? 'Próxima' : 'Paga';
+    const corStatus = isAtual ? 'var(--warn)' : isFuturo ? 'var(--accent2)' : 'var(--muted)';
+    if (!items.length && !isAtual) return '';
+    const itemsHTML = items.length ? items.sort((a,b)=>new Date(b.data)-new Date(a.data)).map(l=>{
+      const dt=new Date(l.data+'T12:00:00'), dd=dt.getDate().toString().padStart(2,'0')+'/'+MESES_ABR[dt.getMonth()];
+      const parc = Number(l.parcTotal)>1 ? `<span class="chip chip-parc">${l.parcAtual}/${l.parcTotal}x</span>` : '';
+      return `<div class="fatura-item">
+        <div class="fatura-item-info">
+          <div class="fatura-item-desc">${EMOJI[l.categoria]||'📌'} ${l.desc}</div>
+          <div class="fatura-item-meta">${l.categoria} · ${dd} ${l.obs?'· '+l.obs:''} ${parc}</div>
+        </div>
+        <div class="fatura-item-val">${fmt(l.valor)}</div>
+      </div>`;
+    }).join('') : `<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Nenhuma compra nesta fatura</div>`;
+    return `<div class="fatura-card">
+      <div class="fatura-header" onclick="this.nextElementSibling.classList.toggle('hidden')">
+        <div>
+          <div class="fatura-mes">${MESES[m]} ${y}</div>
+          <div class="fatura-sub" style="color:${corStatus}">${labelStatus} · ${items.length} lançamento${items.length!==1?'s':''}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="fatura-total">${total>0?fmt(total):'R$ 0,00'}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">vence dia 5/${MESES_ABR[m]}</div>
+        </div>
+      </div>
+      <div class="fatura-body ${isAtual?'':'hidden'}">${itemsHTML}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('fatura-lista').innerHTML = html || '<div class="empty"><div class="empty-icon">💳</div><p>Nenhuma compra no cartão ainda.</p></div>';
+}
+
+// ══════════════════════════════════════════════════
+// PROJEÇÃO
+// ══════════════════════════════════════════════════
+function renderProjecao() {
+  const list=getLancs(curMes,curAno), ent=sum(list,'Entrada'), sai=sum(list,'Saída'), inv=sum(list,'Investimento');
+  document.getElementById('proj-linhas').innerHTML=[
+    {nome:'Entradas',meta:9500,real:ent,pos:true},
+    {nome:'Saídas',meta:Object.values(metas).reduce((a,b)=>a+b,0),real:sai,pos:false},
+    {nome:'Investimentos',meta:1900,real:inv,pos:true},
+    {nome:'Saldo livre',meta:null,real:ent-sai-inv,pos:true},
+  ].map(l=>{
+    const pct=l.meta>0?Math.round((l.real/l.meta)*100):null, ok=l.meta?(l.pos?l.real>=l.meta*0.8:l.real<=l.meta):l.real>=0;
+    return `<div class="proj-row"><div><div class="proj-name">${l.nome}</div><div class="proj-sub">${l.meta?'meta '+fmt(l.meta):'&nbsp;'}</div></div><div class="proj-right"><div class="proj-val" style="color:${l.real<0?'var(--danger)':ok?'var(--accent)':'var(--danger)'}">${l.real<0?'- ':''}${fmt(Math.abs(l.real))}</div><div class="proj-pct">${pct!==null?pct+'%':'&nbsp;'}</div></div></div>`;
+  }).join('');
+  document.getElementById('metas-list').innerHTML = Object.entries(metas).map(([cat,val])=>`<div class="meta-row"><div class="meta-label">${EMOJI[cat]||'📌'} ${cat}</div><input class="meta-input" type="number" data-cat="${cat}" value="${val}" min="0" step="50" inputmode="numeric"></div>`).join('');
+}
+function salvarMetas() {
+  document.querySelectorAll('.meta-input').forEach(i=>{metas[i.dataset.cat]=parseFloat(i.value)||0;});
+  localStorage.setItem('cf_metas', JSON.stringify(metas));
+  salvarMetasRemoto().catch(()=>{});
+  renderResumo();
+  const btn=document.querySelector('.btn-save-metas');
+  btn.textContent='Salvo ✓'; setTimeout(()=>btn.textContent='Salvar metas',1800);
+}
+
+// ══════════════════════════════════════════════════
+// MODAL — CRIAR / EDITAR
+// ══════════════════════════════════════════════════
+function abrirModal(id) {
+  closeFab();
+  editandoId = id || null;
+  document.getElementById('modal-title').textContent = id ? 'Editar lançamento' : 'Novo lançamento';
+  document.getElementById('btn-deletar').classList.toggle('hidden', !id);
+
+  if (id) {
+    // Preenche com dados existentes
+    const l = lancamentos.find(x => String(x.id) === String(id));
+    if (!l) return;
+    document.getElementById('f-id').value = l.id;
+    setTipo(l.tipo, document.querySelector(`.tipo-btn.active-${l.tipo==='Saída'?'saida':l.tipo==='Entrada'?'entrada':'inv'}`)||document.querySelector('.tipo-btn'));
+    // Força tipo correto
+    tipoSel = l.tipo;
+    document.querySelectorAll('.tipo-btn').forEach(b=>b.className='tipo-btn');
+    const tipoCls = l.tipo==='Saída'?'active-saida':l.tipo==='Entrada'?'active-entrada':'active-inv';
+    document.querySelectorAll('.tipo-btn').forEach((b,i)=>{if(['Saída','Entrada','Investimento'][i]===l.tipo) b.classList.add(tipoCls);});
+    document.getElementById('f-tipo').value = l.tipo;
+    document.getElementById('bloco-pagamento').style.display = l.tipo==='Saída'?'block':'none';
+    atualizarCats();
+    setTimeout(()=>{
+      document.getElementById('f-cat').value = l.categoria||'';
+      atualizarSubs();
+      setTimeout(()=>{
+        document.getElementById('f-sub').value = l.sub||'';
+        atualizarDescs();
+        document.getElementById('f-desc').value = l.desc||'';
+      },0);
+    },0);
+    document.getElementById('f-valor').value = l.valor;
+    document.getElementById('f-data').value = l.data;
+    document.getElementById('f-obs').value = l.obs||'';
+    if (l.tipo==='Saída') {
+      if (l.pagamento==='Pix/Débito') {
+        document.querySelectorAll('.pag-btn')[1].click();
+      } else {
+        document.querySelectorAll('.pag-btn')[0].click();
+      }
+      document.getElementById('f-parc-atual').value = l.parcAtual||1;
+      document.getElementById('f-parc-total').value = l.parcTotal||1;
+    }
+  } else {
+    // Novo
+    document.getElementById('f-id').value = '';
+    document.getElementById('f-valor').value = '';
+    document.getElementById('f-obs').value = '';
+    document.getElementById('f-data').value = hoje();
+    document.getElementById('f-parc-atual').value = '1';
+    document.getElementById('f-parc-total').value = '1';
+  }
+
+  document.getElementById('modal-overlay').classList.add('open');
+  atualizarInfoFatura();
+}
+
+function fecharModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('open');
+  editandoId = null;
+}
+
+function initForm() {
+  setTipo('Saída', document.querySelector('.tipo-btn'));
+  setPag('Cartão', document.querySelector('.pag-btn'));
+}
+
+function setTipo(tipo, btn) {
+  tipoSel = tipo;
+  document.getElementById('f-tipo').value = tipo;
+  document.querySelectorAll('.tipo-btn').forEach(b=>b.className='tipo-btn');
+  if (btn) btn.classList.add(tipo==='Saída'?'active-saida':tipo==='Entrada'?'active-entrada':'active-inv');
+  document.getElementById('bloco-pagamento').style.display = tipo==='Saída'?'block':'none';
+  atualizarCats();
+}
+
+function setPag(pag, btn) {
+  pagSel = pag;
+  document.getElementById('f-pag').value = pag;
+  document.querySelectorAll('.pag-btn').forEach(b=>b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('bloco-parcelas').style.display = pag==='Cartão'?'grid':'none';
+  atualizarInfoFatura();
+}
+
+function atualizarInfoFatura() {
+  const box = document.getElementById('info-fatura');
+  if (pagSel !== 'Cartão') { box.style.display='none'; return; }
+  const dataVal = document.getElementById('f-data').value;
+  if (!dataVal) { box.style.display='none'; return; }
+  const DIA = getDiaFechamento();
+  const dt  = new Date(String(dataVal).substring(0,10)+'T12:00:00');
+  const dia = dt.getDate(), m = dt.getMonth(), y = dt.getFullYear();
+  let fatM, fatY;
+  if (dia > DIA) {
+    fatM = m===11?0:m+1; fatY = m===11?y+1:y;
+  } else {
+    fatM=m; fatY=y;
+  }
+  const aviso = dia > DIA
+    ? `Compra após dia ${DIA} → entra na fatura de <strong>${MESES[fatM]}/${fatY}</strong>`
+    : `Compra até dia ${DIA} → entra na fatura de <strong>${MESES[fatM]}/${fatY}</strong>`;
+  box.innerHTML = '💳 ' + aviso;
+  box.style.display = 'block';
+}
+
+function atualizarCats() {
+  const sel=document.getElementById('f-cat');
+  sel.innerHTML=Object.keys(CATS[tipoSel]||{}).map(c=>`<option>${c}</option>`).join('');
+  atualizarSubs();
+}
+function atualizarSubs() {
+  const cat=document.getElementById('f-cat').value, subs=CATS[tipoSel]?.[cat]||{};
+  document.getElementById('f-sub').innerHTML=Object.keys(subs).map(s=>`<option>${s}</option>`).join('');
+  atualizarDescs();
+}
+function atualizarDescs() {
+  const cat=document.getElementById('f-cat').value, sub=document.getElementById('f-sub').value;
+  const descs=CATS[tipoSel]?.[cat]?.[sub]||['Outros'];
+  document.getElementById('f-desc').innerHTML=descs.map(d=>`<option>${d}</option>`).join('');
+}
+
+// Atualiza aviso ao mudar data
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.getElementById('f-data').addEventListener('change', atualizarInfoFatura);
+});
+
+// Gera data do mês seguinte ao mês de fechamento da fatura
+function proximaDataFatura(dataCompra, nParcela) {
+  // Calcula o mês da fatura para cada parcela
+  // Regra: compra após dia de fechamento → 1ª parcela no mês SEGUINTE
+  //        compra antes/no dia de fechamento → 1ª parcela no mês ATUAL
+  const dt  = new Date(String(dataCompra).substring(0,10) + 'T12:00:00');
+  const dia = dt.getDate();
+  let   m   = dt.getMonth();
+  let   y   = dt.getFullYear();
+
+  const offset = dia > getDiaFechamento() ? 1 : 0;
+  m += offset + (nParcela - 1);
+  while (m > 11) { m -= 12; y++; }
+
+  // IMPORTANTE: usa dia 1 para garantir que faturaDoLancamento
+  // não desloque esta parcela para outro mês (dia 1 < dia de fechamento sempre)
+  return `${y}-${String(m+1).padStart(2,'0')}-01`;
+}
+
+// Retorna o mês/ano da fatura de um lançamento parcelado já gerado
+// (lançamentos gerados automaticamente usam dia 1 — não devem ser deslocados)
+function isParcelaGerada(l) {
+  return l.pagamento === 'Cartão' &&
+         Number(l.parcTotal) > 1 &&
+         String(l.data || '').endsWith('-01');
+}
+
+async function salvarLancamento() {
+  const valor=parseFloat(document.getElementById('f-valor').value);
+  const data=document.getElementById('f-data').value;
+  if (!valor||valor<=0) { alert('Informe um valor válido.'); return; }
+  if (!data) { alert('Informe a data.'); return; }
+
+  const isParcelado = tipoSel==='Saída' && pagSel==='Cartão';
+  const parcTotal   = isParcelado ? parseInt(document.getElementById('f-parc-total').value)||1 : 1;
+  const parcAtual   = isParcelado ? parseInt(document.getElementById('f-parc-atual').value)||1 : 1;
+  const isNovo      = !editandoId;
+
+  // Base do lançamento
+  const base = {
+    tipo: tipoSel,
+    categoria: document.getElementById('f-cat').value,
+    sub: document.getElementById('f-sub').value,
+    desc: document.getElementById('f-desc').value,
+    valor, data,
+    obs: document.getElementById('f-obs').value,
+    pagamento: tipoSel==='Saída'?pagSel:'',
+    parcAtual: isParcelado ? String(parcAtual) : '',
+    parcTotal: isParcelado ? String(parcTotal) : '',
+  };
+
+  // Se for parcelado novo com mais de 1 parcela, gera todas automaticamente
+  const gerarParcelas = isNovo && isParcelado && parcTotal > 1;
+
+  const btn=document.getElementById('btn-confirmar');
+  const recorrenteAtivo = document.getElementById('f-recorrente')?.checked;
+  const nMesesRec = recorrenteAtivo ? (parseInt(document.getElementById('f-recorrente-meses')?.value)||1) : 1;
+  btn.textContent = gerarParcelas ? `Salvando ${parcTotal} parcelas...` : recorrenteAtivo ? `Salvando ${nMesesRec} meses...` : 'Salvando...';
+  btn.classList.add('loading');
+
+  try {
+    if (editandoId) {
+      // Edição: salva só esta parcela
+      const dado = {...base, id: editandoId};
+      await atualizarLancamentoRemoto(dado);
+      const idx = lancamentos.findIndex(l=>String(l.id)===String(editandoId));
+      if (idx>=0) lancamentos[idx] = dado;
+    } else if (gerarParcelas) {
+      // Novo parcelado: cria uma entrada por parcela no mês correto
+      const descBase = base.desc;
+      for (let p = parcAtual; p <= parcTotal; p++) {
+        const dataParc = proximaDataFatura(data, p);
+        const dado = {
+          ...base,
+          id: Date.now() + p, // IDs únicos
+          desc: descBase,
+          data: dataParc,
+          parcAtual: String(p),
+          parcTotal: String(parcTotal),
+        };
+        await enviarLancamento(dado);
+        lancamentos.push(dado);
+        await new Promise(r => setTimeout(r, 100)); // pequena pausa entre saves
+      }
+    } else {
+      // Novo simples — verifica se é recorrente
+      const recorrente = document.getElementById('f-recorrente')?.checked;
+      const nMeses     = recorrente ? (parseInt(document.getElementById('f-recorrente-meses')?.value)||1) : 1;
+
+      for (let rep = 0; rep < nMeses; rep++) {
+        let dataRep = base.data;
+        if (rep > 0) {
+          // Avança o mês
+          const dt = new Date(String(base.data).substring(0,10) + 'T12:00:00');
+          let m = dt.getMonth() + rep, y = dt.getFullYear();
+          while (m > 11) { m -= 12; y++; }
+          dataRep = `${y}-${String(m+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+        }
+        const dado = {...base, id: Date.now() + rep, data: dataRep};
+        await enviarLancamento(dado);
+        lancamentos.push(dado);
+        if (rep < nMeses - 1) await new Promise(r => setTimeout(r, 100));
+      }
+    }
+    btn.textContent='✓ Salvo!'; btn.style.background='#00c896';
+    setTimeout(()=>{ btn.textContent='Confirmar'; btn.style.background=''; btn.classList.remove('loading'); fecharModal(); },1200);
+    renderAll();
+    setSyncStatus('ok','Sincronizado · '+horaAtual());
+  } catch(e) {
+    btn.textContent='Erro — tente novamente'; btn.classList.remove('loading');
+    setTimeout(()=>btn.textContent='Confirmar',2500);
+  }
+}
+
+function confirmarDelete(id) {
+  if (confirm('Excluir este lançamento?')) deletarById(id);
+}
+
+async function deletarLancamento() {
+  if (!editandoId) return;
+  if (!confirm('Excluir este lançamento?')) return;
+  await deletarById(editandoId);
+  fecharModal();
+}
+
+async function deletarById(id) {
+  try {
+    await deletarLancamentoRemoto(id);
+    lancamentos = lancamentos.filter(l=>String(l.id)!==String(id));
+    renderAll();
+    setSyncStatus('ok','Sincronizado · '+horaAtual());
+  } catch(e) { alert('Erro ao excluir.'); }
+}
+
+
+// ══════════════════════════════════════════════════
+// SELEÇÃO EM LOTE — Histórico
+// ══════════════════════════════════════════════════
+let modoSelecao = false;
+let selecionados = new Set();
+
+function toggleSelecao() {
+  modoSelecao = !modoSelecao;
+  selecionados.clear();
+  document.getElementById('btn-selecionar').textContent = modoSelecao ? 'Cancelar' : 'Selecionar';
+  document.getElementById('btn-selecionar').style.color = modoSelecao ? 'var(--danger)' : '';
+  document.getElementById('batch-bar').classList.toggle('hidden', !modoSelecao);
+  renderHistorico();
+}
+
+function cancelarSelecao() {
+  modoSelecao = false;
+  selecionados.clear();
+  document.getElementById('btn-selecionar').textContent = 'Selecionar';
+  document.getElementById('btn-selecionar').style.color = '';
+  document.getElementById('batch-bar').classList.add('hidden');
+  renderHistorico();
+}
+
+function toggleCheck(id, el) {
+  if (el.checked) selecionados.add(String(id));
+  else selecionados.delete(String(id));
+  document.getElementById('batch-count').textContent = selecionados.size;
+}
+
+async function excluirSelecionados() {
+  if (!selecionados.size) return;
+  if (!confirm(`Excluir ${selecionados.size} lançamento(s)?`)) return;
+  const btn = document.querySelector('.btn-batch-del');
+  btn.textContent = 'Excluindo...'; btn.disabled = true;
+  try {
+    for (const id of selecionados) {
+      await deletarLancamentoRemoto(id);
+      lancamentos = lancamentos.filter(l => String(l.id) !== id);
+    }
+    selecionados.clear();
+    cancelarSelecao();
+    renderAll();
+    setSyncStatus('ok', 'Sincronizado · ' + horaAtual());
+  } catch(e) {
+    alert('Erro ao excluir. Tente novamente.');
+  }
+  btn.textContent = '🗑️ Excluir'; btn.disabled = false;
+}
+
+// ══════════════════════════════════════════════════
+// ESTORNO
+// ══════════════════════════════════════════════════
+async function lancarEstorno(id) {
+  const l = lancamentos.find(x => String(x.id) === String(id));
+  if (!l) return;
+  if (!confirm(`Estornar "${l.desc}" de ${fmt(l.valor)}? Será criada uma entrada positiva.`)) return;
+  const dado = {
+    tipo: 'Entrada',
+    categoria: 'Estorno',
+    sub: l.categoria,
+    desc: 'Estorno: ' + l.desc,
+    valor: Number(l.valor),
+    data: hoje(),
+    obs: 'Estorno do lançamento original de ' + l.data,
+    pagamento: '',
+    parcAtual: '', parcTotal: '',
+    id: Date.now(),
+  };
+  // Adiciona Estorno às categorias de entrada se não existir
+  if (!CATS['Entrada']['Estorno']) CATS['Entrada']['Estorno'] = { 'Estorno':['Estorno de compra'] };
+  try {
+    await enviarLancamento(dado);
+    lancamentos.push(dado);
+    renderAll();
+    setSyncStatus('ok', 'Sincronizado · ' + horaAtual());
+    alert('✅ Estorno lançado como entrada!');
+  } catch(e) { alert('Erro ao lançar estorno.'); }
+}
+
+// ══════════════════════════════════════════════════
+// RECORRENTE
+// ══════════════════════════════════════════════════
+function toggleRecorrente(cb) {
+  document.getElementById('f-recorrente-meses-wrap').classList.toggle('hidden', !cb.checked);
+}
+
+// ══════════════════════════════════════════════════
+// CALCULADORA DE SALÁRIO (Config)
+// ══════════════════════════════════════════════════
+let descontosExtras = [];
+
+function addDesconto() {
+  descontosExtras.push({ nome: '', valor: 0 });
+  renderDescontos();
+}
+
+function removeDesconto(i) {
+  descontosExtras.splice(i, 1);
+  renderDescontos();
+  calcularSalario();
+}
+
+function renderDescontos() {
+  const el = document.getElementById('cfg-descontos-lista');
+  if (!el) return;
+  el.innerHTML = descontosExtras.map((d, i) => `
+    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+      <input type="text" placeholder="Desconto (ex: Plano de Saúde)" value="${d.nome}"
+        style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px"
+        oninput="descontosExtras[${i}].nome=this.value">
+      <input type="number" placeholder="R$" value="${d.valor||''}"
+        style="width:90px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;text-align:right"
+        oninput="descontosExtras[${i}].valor=parseFloat(this.value)||0;calcularSalario()">
+      <button onclick="removeDesconto(${i})" style="background:var(--faint);border:none;border-radius:8px;width:32px;height:32px;color:var(--danger);font-size:16px">×</button>
+    </div>`).join('');
+}
+
+function calcularSalario() {
+  const bruto = parseFloat(document.getElementById('cfg-salario-bruto')?.value) || 0;
+  const deps  = parseInt(document.getElementById('cfg-dependentes')?.value) || 0;
+  const el    = document.getElementById('sal-resultado');
+  if (!el || bruto <= 0) { el && el.classList.add('hidden'); return; }
+
+  // INSS 2026 progressivo
+  const inss = Math.min(
+    Math.max(0, Math.min(bruto, 1518.00)) * 0.075 +
+    Math.max(0, Math.min(bruto, 2793.88) - 1518.00) * 0.09 +
+    Math.max(0, Math.min(bruto, 4190.83) - 2793.88) * 0.12 +
+    Math.max(0, Math.min(bruto, 8157.41) - 4190.83) * 0.14,
+    908.82
+  );
+
+  // Base IR = bruto - inss - dependentes
+  const deducaoDep = deps * 189.59;
+  const baseIR = Math.max(0, bruto - inss - deducaoDep);
+
+  // IR 2026
+  let ir = 0;
+  if (baseIR > 5831.90)      ir = baseIR * 0.275 - 1133.21;
+  else if (baseIR > 4664.68) ir = baseIR * 0.225 - 842.21;
+  else if (baseIR > 3751.05) ir = baseIR * 0.15  - 492.61;
+  else if (baseIR > 2824.00) ir = baseIR * 0.075 - 211.80;
+  // Crédito isenção até R$ 5.000
+  if (baseIR <= 5000) ir = Math.max(0, ir - 528.30);
+  ir = Math.max(0, ir);
+
+  const totalExtras = descontosExtras.reduce((a,d) => a + (d.valor||0), 0);
+  const liquido     = bruto - inss - ir - totalExtras;
+  const adiantamento = liquido * 0.40; // 40% do líquido como adiantamento
+
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="sal-linha"><span class="sal-desc">Salário bruto</span><span class="sal-val">${fmt(bruto)}</span></div>
+    <div class="sal-linha"><span class="sal-desc">(-) INSS</span><span class="sal-val" style="color:var(--danger)">- ${fmt(inss)}</span></div>
+    <div class="sal-linha"><span class="sal-desc">(-) IR retido</span><span class="sal-val" style="color:var(--danger)">- ${fmt(ir)}</span></div>
+    ${descontosExtras.filter(d=>d.valor>0).map(d=>`<div class="sal-linha"><span class="sal-desc">(-) ${d.nome||'Desconto'}</span><span class="sal-val" style="color:var(--danger)">- ${fmt(d.valor)}</span></div>`).join('')}
+    <div class="sal-linha"><span class="sal-desc">💰 Salário líquido</span><span class="sal-val">${fmt(liquido)}</span></div>
+    <div class="sal-linha" style="margin-top:4px"><span class="sal-desc">📅 Adiantamento dia 15 (~40%)</span><span class="sal-val" style="color:var(--accent2)">${fmt(adiantamento)}</span></div>
+    <div class="sal-linha"><span class="sal-desc">📅 Pagamento final (~60%)</span><span class="sal-val" style="color:var(--accent)">${fmt(liquido - adiantamento)}</span></div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button onclick="lancarSalarioMes(${liquido}, ${adiantamento})" style="flex:1;padding:10px;background:var(--accent);color:#0f1923;border:none;border-radius:8px;font-size:13px;font-weight:600">✅ Lançar este mês</button>
+    </div>`;
+
+  // Salva no USER para usar depois
+  USER.salario_bruto    = bruto;
+  USER.salario_liquido  = liquido;
+  USER.adiantamento     = adiantamento;
+  USER.descontos_extras = descontosExtras;
+}
+
+async function lancarSalarioMes(liquido, adiantamento) {
+  const mesAtual = hoje().substring(0, 7); // YYYY-MM
+  const dia15    = mesAtual + '-15';
+  const diaFinal = mesAtual + '-' + new Date(curAno, curMes+1, 0).getDate();
+
+  const lançamentos = [
+    { desc:'Adiantamento (dia 15)', valor:adiantamento, data:dia15, sub:'Adiantamento' },
+    { desc:'Salário líquido', valor:liquido - adiantamento, data:diaFinal, sub:'Salário' },
+  ];
+
+  for (const l of lançamentos) {
+    const dado = {
+      tipo:'Entrada', categoria:'Salário', sub:l.sub,
+      desc:l.desc, valor:l.valor, data:l.data,
+      obs:'Lançado automaticamente via Config',
+      pagamento:'', parcAtual:'', parcTotal:'',
+      id: Date.now() + Math.random()
+    };
+    await enviarLancamento(dado);
+    lancamentos.push(dado);
+    await new Promise(r => setTimeout(r, 150));
+  }
+  renderAll();
+  alert('✅ Adiantamento e salário lançados!');
+}
+
+// ══════════════════════════════════════════════════
+// OVERRIDE salvarConfig para salvar descontos extras
+// ══════════════════════════════════════════════════
+const _salvarConfigOrig = salvarConfig;
+salvarConfig = async function() {
+  // Salva descontos extras no USER
+  USER.descontos_extras = descontosExtras;
+  localStorage.setItem('cf_user', JSON.stringify(USER));
+  await _salvarConfigOrig();
+};
+
+// ══════════════════════════════════════════════════
+// LOGOUT — invalida token no servidor
+// ══════════════════════════════════════════════════
+async function fazerLogout() {
+  if (!confirm('Sair da sua conta?')) return;
+  try {
+    // Invalida token no servidor
+    if (TOKEN) await api('logout', { token: TOKEN });
   } catch(e) {}
-  return null;
+  localStorage.removeItem('cf_token');
+  localStorage.removeItem('cf_user');
+  TOKEN = ''; USER = {};
+  show('auth-screen');
 }
 
-function revogarToken(token, motivo) {
+// ══════════════════════════════════════════════════
+// RECUPERAÇÃO DE SENHA
+// ══════════════════════════════════════════════════
+async function solicitarReset() {
+  const email = document.getElementById('reset-email').value.trim();
+  const erro  = document.getElementById('reset-erro');
+  const ok    = document.getElementById('reset-ok');
+  const btn   = document.getElementById('btn-reset');
+  erro.style.display = 'none'; ok.style.display = 'none';
+  if (!email) { erroAuth(erro, 'Informe o e-mail.'); return; }
+
+  const tsEl    = document.querySelector('#turnstile-reset [name="cf-turnstile-response"]');
+  const tsToken = tsEl ? tsEl.value : '';
+  if (!tsToken) { erroAuth(erro, 'Verificação de segurança não concluída.'); return; }
+
+  btn.textContent = 'Enviando...'; btn.classList.add('loading');
   try {
-    const rev = getAba('Tokens_Revogados');
-    if (rev) rev.appendRow([hashToken(token), new Date().toISOString(), motivo || 'logout']);
-  } catch(e) {}
+    const r = await api('esqueci_senha', { email, tsToken });
+    btn.textContent = 'Enviar código'; btn.classList.remove('loading');
+    // Sempre mostra mensagem genérica (não revela se e-mail existe)
+    ok.textContent = r.msg || 'Se o e-mail estiver cadastrado, você receberá as instruções em breve.';
+    ok.style.display = 'block';
+    // Avança para step 2 após 1.5s
+    setTimeout(() => {
+      document.getElementById('reset-step1').classList.add('hidden');
+      document.getElementById('reset-step2').classList.remove('hidden');
+      document.getElementById('reset-email-hidden').value = email;
+    }, 1500);
+  } catch(e) {
+    erroAuth(erro, 'Erro de conexão. Tente novamente.');
+    btn.textContent = 'Enviar código'; btn.classList.remove('loading');
+  }
 }
 
-function verificarTurnstile(tsToken) {
-  if (!tsToken) return false;
+async function redefinirSenha() {
+  const email       = (document.getElementById('reset-email-hidden')?.value || document.getElementById('reset-email').value).trim();
+  const codigo      = document.getElementById('reset-codigo').value.trim();
+  const novaSenha   = document.getElementById('reset-nova-senha').value;
+  const confirmaSenha = document.getElementById('reset-confirma-senha').value;
+  const erro        = document.getElementById('reset2-erro');
+  const btn         = document.getElementById('btn-redefinir');
+  erro.style.display = 'none';
+
+  if (!codigo)                    { erroAuth(erro, 'Informe o código recebido.'); return; }
+  if (!novaSenha)                 { erroAuth(erro, 'Informe a nova senha.'); return; }
+  if (novaSenha !== confirmaSenha){ erroAuth(erro, 'As senhas não coincidem.'); return; }
+  if (novaSenha.length < 8)       { erroAuth(erro, 'Senha deve ter ao menos 8 caracteres.'); return; }
+  if (!/[A-Z]/.test(novaSenha))   { erroAuth(erro, 'Senha precisa de ao menos uma maiúscula.'); return; }
+  if (!/[0-9]/.test(novaSenha))   { erroAuth(erro, 'Senha precisa de ao menos um número.'); return; }
+
+  btn.textContent = 'Redefinindo...'; btn.classList.add('loading');
   try {
-    const resp   = UrlFetchApp.fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'post',
-      contentType: 'application/x-www-form-urlencoded',
-      payload: 'secret=' + TURNSTILE_SECRET + '&response=' + encodeURIComponent(tsToken),
-      muteHttpExceptions: true
-    });
-    return JSON.parse(resp.getContentText()).success === true;
-  } catch(e) { return true; }
+    const r = await api('redefinir_senha', { email, tokenReset: codigo, novaSenha });
+    btn.textContent = 'Redefinir senha'; btn.classList.remove('loading');
+    if (!r.ok) { erroAuth(erro, r.error); return; }
+    // Sucesso — volta para login
+    alert('✅ ' + r.msg);
+    setAuthTab('login');
+  } catch(e) {
+    erroAuth(erro, 'Erro de conexão. Tente novamente.');
+    btn.textContent = 'Redefinir senha'; btn.classList.remove('loading');
+  }
 }
 
-function findUser(email) {
-  if (!email) return null;
-  const sheet = getUsersSheet();
-  const data  = sheet.getDataRange().getValues();
-  const hdrs  = data[0];
-  for (let i = 1; i < data.length; i++) {
-    const row = {}; hdrs.forEach((h,j) => row[h] = data[i][j]);
-    if (String(row.email||'').toLowerCase().trim() === String(email).toLowerCase().trim())
-      return { row: i+1, data: row, hdrs, sheet };
-  }
-  return null;
-}
-
-function criarSheetUsuario(nome, email) {
-  const ss = SpreadsheetApp.create(APP_NAME + ' — ' + nome);
-  const s1 = ss.getActiveSheet();
-  s1.setName('Lançamentos');
-  s1.appendRow(['id','tipo','categoria','sub','desc','valor','data','obs','pagamento','parcAtual','parcTotal','timestamp']);
-  s1.getRange(1,1,1,12).setFontWeight('bold').setBackground('#1f2f3a').setFontColor('#fff');
-  const s2 = ss.insertSheet('Metas');
-  s2.appendRow(['categoria','meta']);
-  [['Contas',800],['Financiamento',3100],['Educação',1150],['Alimentação',400],
-   ['Mercado',800],['Saúde',150],['Transporte',400],['Lazer',200],
-   ['Cuid. Pessoais',200],['Pets',120],['Compras',350],['Impostos',700],
-   ['Transferências',1000],['Casa',200],['Viagem',0],['Seguros',264],['Outros',300]
-  ].forEach(r => s2.appendRow(r));
-  const s3 = ss.insertSheet('Config');
-  s3.appendRow(['chave','valor']);
-  [['dia_fechamento',5],['nome',nome],['email',email]].forEach(r => s3.appendRow(r));
-  return ss.getId();
-}
-
-function notificarAdmin(dados) {
-  try {
-    MailApp.sendEmail(ADMIN_EMAIL, '[' + APP_NAME + '] Novo cadastro',
-      'Nome: ' + dados.nome + '\nEmail: ' + dados.email +
-      '\n\nhttps://docs.google.com/spreadsheets/d/' + getProp('USERS_SHEET_ID'));
-  } catch(e) {}
-}
-
-function notificarUsuario(email, nome) {
-  try {
-    MailApp.sendEmail(email, 'Acesso aprovado — ' + APP_NAME,
-      'Olá ' + nome + '! Seu acesso foi aprovado. Faça login no app.');
-  } catch(e) {}
-}
-
-// ════════════════════════════════════════════════════════════════════
-// API — doGet
-// ════════════════════════════════════════════════════════════════════
-function doGet(e) {
-  const action = (e.parameter||{}).action || 'get';
-  const token  = (e.parameter||{}).token  || '';
-
-  if (action === 'refresh') {
-    const user = validarToken(token);
-    if (!user) return R({ ok:false, error:'Sessão expirada.' });
-    const novoToken = gerarToken(user.id);
-    log('token_refresh', user.email, 'Token renovado');
-    return R({ ok:true, token: novoToken, nome: user.nome, dia_fechamento: user.dia_fechamento||5 });
-  }
-
-  const user = validarToken(token);
-  if (!user) return R({ ok:false, error:'Não autorizado.' });
-
-  try {
-    const ss  = SpreadsheetApp.openById(user.sheet_id);
-    const s1  = ss.getSheetByName('Lançamentos');
-    const rows = s1.getDataRange().getValues();
-    const hdrs = rows[0];
-    const lancamentos = rows.slice(1).map(r => { const o={}; hdrs.forEach((h,i)=>o[h]=r[i]); return o; });
-    const metas = {};
-    const s2 = ss.getSheetByName('Metas');
-    if (s2) s2.getDataRange().getValues().slice(1).forEach(r => { if(r[0]) metas[r[0]] = Number(r[1]); });
-    const config = {};
-    const s3 = ss.getSheetByName('Config');
-    if (s3) s3.getDataRange().getValues().slice(1).forEach(r => { if(r[0]) config[r[0]] = r[1]; });
-    return R({ ok:true, lancamentos, metas, config });
-  } catch(e) { return R({ ok:false, error: e.message }); }
-}
-
-// ════════════════════════════════════════════════════════════════════
-// API — doPost
-// ════════════════════════════════════════════════════════════════════
-function doPost(e) {
-  const action = (e.parameter||{}).action || '';
-  const body   = JSON.parse(e.postData.contents || '{}');
-
-  // ── CADASTRO ──────────────────────────────────────────────────────
-  if (action === 'cadastro') {
-    try {
-      const { nome, email, senha, tsToken } = body;
-      if (!nome||!email||!senha) return R({ ok:false, error:'Preencha todos os campos.' });
-      if (senha.length < 8)     return R({ ok:false, error:'Senha deve ter ao menos 8 caracteres.' });
-      if (!/[A-Z]/.test(senha)) return R({ ok:false, error:'Senha precisa de ao menos uma maiúscula.' });
-      if (!/[0-9]/.test(senha)) return R({ ok:false, error:'Senha precisa de ao menos um número.' });
-      if (!verificarTurnstile(tsToken)) return R({ ok:false, error:'Verificação de segurança falhou.' });
-      if (findUser(email)) return R({ ok:false, error:'E-mail já cadastrado.' });
-      const salt = gerarSalt();
-      getUsersSheet().appendRow([
-        Utilities.getUuid(), nome, email.toLowerCase().trim(), hashSenha(senha, salt), salt,
-        'pendente', '', 5, new Date().toISOString(), '', 0, '', ''
-      ]);
-      log('cadastro', email, 'Novo cadastro pendente');
-      notificarAdmin({ nome, email });
-      return R({ ok:true, msg:'Cadastro enviado! Aguarde aprovação por e-mail.' });
-    } catch(err) { return R({ ok:false, error: err.message }); }
-  }
-
-  // ── LOGIN ──────────────────────────────────────────────────────────
-  if (action === 'login') {
-    try {
-      const { email, senha, tsToken } = body;
-      if (!email||!senha) return R({ ok:false, error:'Preencha e-mail e senha.' });
-      if (!verificarTurnstile(tsToken)) return R({ ok:false, error:'Verificação de segurança falhou.' });
-      const found = findUser(email);
-      if (!found) {
-        log('login_falha', email, 'Email não encontrado');
-        return R({ ok:false, error:'E-mail ou senha incorretos.' });
-      }
-      const { data: u, row, hdrs, sheet } = found;
-      if (u.bloqueado_ate && new Date(u.bloqueado_ate) > new Date()) {
-        const mins = Math.ceil((new Date(u.bloqueado_ate) - new Date()) / 60000);
-        log('login_bloqueado', email, 'Conta bloqueada');
-        return R({ ok:false, error:'Conta bloqueada por ' + mins + ' min. por excesso de tentativas.' });
-      }
-      if (u.status === 'pendente')  return R({ ok:false, error:'Aguardando aprovação.' });
-      if (u.status === 'bloqueado') return R({ ok:false, error:'Acesso suspenso. Contate o administrador.' });
-      // Verifica senha (com salt ou legado sem salt)
-      const hashInformado = u.salt ? hashSenha(senha, u.salt) : hashSenha(senha, '');
-      if (hashInformado !== u.senha_hash) {
-        const tent = (parseInt(u.tentativas)||0) + 1;
-        const colT = hdrs.indexOf('tentativas') + 1;
-        const colB = hdrs.indexOf('bloqueado_ate') + 1;
-        sheet.getRange(row, colT).setValue(tent);
-        if (tent >= MAX_TENTATIVAS && colB > 0)
-          sheet.getRange(row, colB).setValue(new Date(Date.now() + BLOQUEIO_MIN*60000).toISOString());
-        log('login_falha', email, 'Senha incorreta, tentativa ' + tent);
-        const restam = Math.max(0, MAX_TENTATIVAS - tent);
-        return R({ ok:false, error:'E-mail ou senha incorretos.' + (restam > 0 ? ' ' + restam + ' tentativa(s).' : ' Conta bloqueada.') });
-      }
-      // Sucesso — reseta tentativas
-      const colT = hdrs.indexOf('tentativas') + 1;
-      const colB = hdrs.indexOf('bloqueado_ate') + 1;
-      const colL = hdrs.indexOf('ultimo_login') + 1;
-      if (colT > 0) sheet.getRange(row, colT).setValue(0);
-      if (colB > 0) sheet.getRange(row, colB).setValue('');
-      if (colL > 0) sheet.getRange(row, colL).setValue(new Date().toISOString());
-      log('login_ok', email, 'Login bem-sucedido');
-      return R({ ok:true, token: gerarToken(u.id), nome: u.nome, dia_fechamento: u.dia_fechamento||5 });
-    } catch(err) { return R({ ok:false, error: err.message }); }
-  }
-
-  // ── LOGOUT ──────────────────────────────────────────────────────────
-  if (action === 'logout') {
-    try {
-      const token = body.token || '';
-      if (token) {
-        const user = validarToken(token);
-        revogarToken(token, 'logout');
-        if (user) log('logout', user.email, 'Logout realizado');
-      }
-      return R({ ok:true });
-    } catch(err) { return R({ ok:false, error: err.message }); }
-  }
-
-  // ── ESQUECI A SENHA ─────────────────────────────────────────────────
-  if (action === 'esqueci_senha') {
-    try {
-      const { email, tsToken } = body;
-      if (!email) return R({ ok:false, error:'Informe o e-mail.' });
-      if (!verificarTurnstile(tsToken)) return R({ ok:false, error:'Verificação de segurança falhou.' });
-      // Resposta genérica para não revelar se e-mail existe
-      const found = findUser(email);
-      if (found && found.data.status === 'ativo') {
-        const token  = Utilities.getUuid().replace(/-/g,'');
-        const expira = new Date(Date.now() + 15*60*1000).toISOString(); // 15 min
-        const reset  = getAba('Reset_Senha');
-        // Invalida resets anteriores do mesmo e-mail
-        if (reset) {
-          const rData = reset.getDataRange().getValues();
-          for (let i = 1; i < rData.length; i++) {
-            if (rData[i][0] === email.toLowerCase().trim() && !rData[i][3]) {
-              reset.getRange(i+1, 4).setValue('invalidado');
-            }
-          }
-          reset.appendRow([email.toLowerCase().trim(), token, expira, false]);
-        }
-        log('reset_senha', email, 'Token de reset gerado');
-        // Envia e-mail com link de reset
-        try {
-          MailApp.sendEmail(email, 'Redefinição de senha — ' + APP_NAME,
-            'Olá!\n\nVocê solicitou redefinição de senha.\n\n' +
-            'Seu código de redefinição: ' + token + '\n\n' +
-            'Este código expira em 15 minutos e pode ser usado apenas uma vez.\n\n' +
-            'Se não foi você, ignore este e-mail.');
-        } catch(e) {}
-      }
-      return R({ ok:true, msg:'Se o e-mail estiver cadastrado, você receberá as instruções em breve.' });
-    } catch(err) { return R({ ok:false, error: err.message }); }
-  }
-
-  // ── REDEFINIR SENHA ─────────────────────────────────────────────────
-  if (action === 'redefinir_senha') {
-    try {
-      const { email, tokenReset, novaSenha } = body;
-      if (!email||!tokenReset||!novaSenha) return R({ ok:false, error:'Dados incompletos.' });
-      if (novaSenha.length < 8)     return R({ ok:false, error:'Senha deve ter ao menos 8 caracteres.' });
-      if (!/[A-Z]/.test(novaSenha)) return R({ ok:false, error:'Senha precisa de ao menos uma maiúscula.' });
-      if (!/[0-9]/.test(novaSenha)) return R({ ok:false, error:'Senha precisa de ao menos um número.' });
-      const reset = getAba('Reset_Senha');
-      if (!reset) return R({ ok:false, error:'Sistema de reset indisponível.' });
-      const rData = reset.getDataRange().getValues();
-      let resetRow = -1;
-      for (let i = 1; i < rData.length; i++) {
-        if (rData[i][0] === email.toLowerCase().trim() &&
-            rData[i][1] === tokenReset &&
-            !rData[i][3] &&
-            new Date(rData[i][2]) > new Date()) {
-          resetRow = i + 1;
-          break;
-        }
-      }
-      if (resetRow === -1) return R({ ok:false, error:'Código inválido ou expirado.' });
-      // Marca como usado
-      reset.getRange(resetRow, 4).setValue(true);
-      // Atualiza senha
-      const found = findUser(email);
-      if (!found) return R({ ok:false, error:'Usuário não encontrado.' });
-      const { row, hdrs, sheet } = found;
-      const novoSalt = gerarSalt();
-      const novoHash = hashSenha(novaSenha, novoSalt);
-      const colHash  = hdrs.indexOf('senha_hash') + 1;
-      const colSalt  = hdrs.indexOf('salt') + 1;
-      const colTent  = hdrs.indexOf('tentativas') + 1;
-      const colBloq  = hdrs.indexOf('bloqueado_ate') + 1;
-      sheet.getRange(row, colHash).setValue(novoHash);
-      if (colSalt > 0) sheet.getRange(row, colSalt).setValue(novoSalt);
-      if (colTent > 0) sheet.getRange(row, colTent).setValue(0);
-      if (colBloq > 0) sheet.getRange(row, colBloq).setValue('');
-      log('senha_redefinida', email, 'Senha redefinida via token');
-      return R({ ok:true, msg:'Senha redefinida com sucesso! Faça login.' });
-    } catch(err) { return R({ ok:false, error: err.message }); }
-  }
-
-  // ── ROTAS AUTENTICADAS ────────────────────────────────────────────
-  const user = validarToken(body.token || '');
-  if (!user) return R({ ok:false, error:'Não autorizado.' });
-  const ss = SpreadsheetApp.openById(user.sheet_id);
-
-  if (action === 'metas') {
-    try {
-      const s2 = ss.getSheetByName('Metas');
-      s2.clearContents(); s2.appendRow(['categoria','meta']);
-      Object.entries(body.metas||{}).forEach(([k,v]) => s2.appendRow([k,v]));
-      return R({ ok:true });
-    } catch(e) { return R({ ok:false, error: e.message }); }
-  }
-
-  if (action === 'config') {
-    try {
-      const s3   = ss.getSheetByName('Config');
-      const rows = s3.getDataRange().getValues();
-      Object.entries(body.config||{}).forEach(([k,v]) => {
-        let found = false;
-        for (let i=1; i<rows.length; i++) {
-          if (rows[i][0]===k) { s3.getRange(i+1,2).setValue(v); found=true; break; }
-        }
-        if (!found) s3.appendRow([k,v]);
-      });
-      if (body.config && body.config.dia_fechamento) {
-        const dia = parseInt(body.config.dia_fechamento);
-        if (dia >= 1 && dia <= 28) {
-          const us  = getUsersSheet(); const ud = us.getDataRange().getValues();
-          const col = ud[0].indexOf('dia_fechamento') + 1;
-          for (let i=1; i<ud.length; i++) {
-            if (String(ud[i][0]) === String(user.id)) { us.getRange(i+1,col).setValue(dia); break; }
-          }
-        }
-      }
-      return R({ ok:true });
-    } catch(e) { return R({ ok:false, error: e.message }); }
-  }
-
-  const s1  = ss.getSheetByName('Lançamentos');
-  const san = (v, n=200) => String(v||'').substring(0,n).replace(/[\r\n]/g,' ');
-
-  if (action === 'delete') {
-    try {
-      const rows = s1.getDataRange().getValues();
-      for (let i=1; i<rows.length; i++) {
-        if (String(rows[i][0]) === String(body.id)) {
-          s1.deleteRow(i+1);
-          log('delete', user.email, 'Lançamento excluído: ' + body.id);
-          return R({ ok:true });
-        }
-      }
-      return R({ ok:false, error:'Não encontrado.' });
-    } catch(e) { return R({ ok:false, error: e.message }); }
-  }
-
-  if (action === 'update') {
-    try {
-      const rows = s1.getDataRange().getValues();
-      const hdrs = rows[0];
-      for (let i=1; i<rows.length; i++) {
-        if (String(rows[i][0]) === String(body.id)) {
-          s1.getRange(i+1,1,1,hdrs.length).setValues([[
-            body.id, san(body.tipo,20), san(body.categoria,50), san(body.sub,50),
-            san(body.desc,200), parseFloat(body.valor)||0, san(body.data).substring(0,10),
-            san(body.obs,300), san(body.pagamento,20), san(body.parcAtual,5), san(body.parcTotal,5),
-            new Date().toISOString()
-          ]]);
-          return R({ ok:true });
-        }
-      }
-      return R({ ok:false, error:'Não encontrado.' });
-    } catch(e) { return R({ ok:false, error: e.message }); }
-  }
-
-  // ADD
-  try {
-    const valor = parseFloat(body.valor)||0;
-    if (valor < 0) return R({ ok:false, error:'Valor inválido.' });
-    s1.appendRow([
-      body.id||Date.now(), san(body.tipo,20), san(body.categoria,50), san(body.sub,50),
-      san(body.desc,200), valor, san(body.data).substring(0,10), san(body.obs,300),
-      san(body.pagamento,20), san(body.parcAtual,5), san(body.parcTotal,5),
-      new Date().toISOString()
-    ]);
-    return R({ ok:true });
-  } catch(e) { return R({ ok:false, error: e.message }); }
-}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){fecharModal();closeFab();} });
+init();
+</script>
+</body>
+</html>
