@@ -297,7 +297,7 @@ button{cursor:pointer}
       </p>
     </div>
     <p style="font-size:11px;color:var(--faint);text-align:center;margin-top:20px">
-      <a href="#" onclick="trocarURL()" style="color:var(--faint)">Alterar servidor</a>
+      
     </p>
   </div>
 </div>
@@ -419,10 +419,7 @@ button{cursor:pointer}
             <div><div class="config-label">Versão</div></div>
             <div style="font-size:12px;color:var(--muted)">v4.0</div>
           </div>
-          <div class="config-row" onclick="trocarURL()" style="cursor:pointer">
-            <div><div class="config-label">Alterar servidor (URL)</div><div class="config-sub">Reconfigurar Apps Script</div></div>
-            <div style="color:var(--muted)">›</div>
-          </div>
+
         </div>
         <button class="btn-config-save" onclick="salvarConfig()">Salvar configurações</button>
       </div>
@@ -565,6 +562,8 @@ const MESES_ABR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','No
 // ══════════════════════════════════════════════════
 // ESTADO
 // ══════════════════════════════════════════════════
+// URL do servidor fixada — usuários não precisam configurar
+const SCRIPT_URL_FIXO = 'https://script.google.com/macros/s/AKfycbznijWZz9IFVX2nD_AXbtjrVhNxFIYGbNSO6wUyGCa7hE85_i2Lbd4i5WYQWzIPWwj_/exec';
 let SCRIPT_URL = '';
 let TOKEN = '';
 let USER = { nome:'', email:'', dia_fechamento:5 };
@@ -610,21 +609,19 @@ function lancamentosDaFatura(m, y) {
 // INIT
 // ══════════════════════════════════════════════════
 function init() {
-  SCRIPT_URL = localStorage.getItem('cf_script_url') || '';
-  TOKEN      = localStorage.getItem('cf_token')      || '';
-  const u    = localStorage.getItem('cf_user');
+  // URL fixada no código — nunca pede configuração ao usuário
+  SCRIPT_URL = SCRIPT_URL_FIXO;
+  localStorage.setItem('cf_script_url', SCRIPT_URL);
+
+  TOKEN = localStorage.getItem('cf_token') || '';
+  const u = localStorage.getItem('cf_user');
   if (u) USER = JSON.parse(u);
   const m = localStorage.getItem('cf_metas');
   if (m) metas = JSON.parse(m);
 
-  if (!SCRIPT_URL) {
-    // Primeira vez: pede a URL do Apps Script
-    show('setup-screen');
-  } else if (!TOKEN) {
-    // URL ok mas sem sessão: mostra login
+  if (!TOKEN) {
     show('auth-screen');
   } else {
-    // Sessão ativa: entra direto
     entrarNoApp();
   }
 }
@@ -637,18 +634,16 @@ function show(id) {
 
 // ── Salvar URL do servidor ──────────────────────────────────────────
 function saveConfig() {
-  const url = document.getElementById('script-url').value.trim();
-  if (!url.startsWith('https://script.google.com')) { alert('URL inválida.'); return; }
-  localStorage.setItem('cf_script_url', url);
-  SCRIPT_URL = url;
+  // URL é fixa — função mantida para compatibilidade
   show('auth-screen');
 }
 
 function trocarURL() {
-  localStorage.removeItem('cf_script_url');
+  // Com URL fixa, só limpa a sessão
   localStorage.removeItem('cf_token');
   localStorage.removeItem('cf_user');
-  location.reload();
+  TOKEN = ''; USER = {};
+  show('auth-screen');
 }
 
 // ── Tabs login/cadastro ─────────────────────────────────────────────
