@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Finanças</title>
 <link rel="manifest" href="manifest.json">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src https://script.google.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; img-src 'self' data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src https://script.google.com https://script.googleusercontent.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; img-src 'self' data:;">
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -237,7 +237,7 @@ button{cursor:pointer}
       </p>
     </div>
     <!-- RESET SENHA -->
-    <div id="auth-reset" class="hidden" style="width:100%">
+    <div id="auth-reset" class="hidden" style="width:100%;overflow-y:auto">
       <div id="reset-step1">
         <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5">
           Informe seu e-mail e enviaremos um código de redefinição válido por 15 minutos.
@@ -654,14 +654,31 @@ function setAuthTab(tab) {
   });
   document.getElementById('tab-login').classList.toggle('active', tab === 'login');
   document.getElementById('tab-cadastro').classList.toggle('active', tab === 'cadastro');
-  // Reset step1 ao abrir tab reset
+
   if (tab === 'reset') {
-    document.getElementById('reset-step1').classList.remove('hidden');
-    document.getElementById('reset-step2').classList.add('hidden');
-    const e1 = document.getElementById('reset-erro');
-    const e2 = document.getElementById('reset-ok');
-    if (e1) e1.style.display = 'none';
-    if (e2) e2.style.display = 'none';
+    // Volta para step1
+    const s1 = document.getElementById('reset-step1');
+    const s2 = document.getElementById('reset-step2');
+    if (s1) s1.classList.remove('hidden');
+    if (s2) s2.classList.add('hidden');
+    // Limpa erros
+    ['reset-erro','reset-ok','reset2-erro'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    // Limpa campos
+    const emailEl = document.getElementById('reset-email');
+    if (emailEl) emailEl.value = '';
+    // Reset turnstile
+    if (window.turnstile) {
+      try { window.turnstile.reset('#turnstile-reset'); } catch(e) {}
+    }
+  }
+  if (tab === 'login' && window.turnstile) {
+    try { window.turnstile.reset('#turnstile-login'); } catch(e) {}
+  }
+  if (tab === 'cadastro' && window.turnstile) {
+    try { window.turnstile.reset('#turnstile-cadastro'); } catch(e) {}
   }
 }
 
@@ -1774,9 +1791,12 @@ async function solicitarReset() {
     ok.style.display = 'block';
     // Avança para step 2 após 1.5s
     setTimeout(() => {
-      document.getElementById('reset-step1').classList.add('hidden');
-      document.getElementById('reset-step2').classList.remove('hidden');
-      document.getElementById('reset-email-hidden').value = email;
+      const s1 = document.getElementById('reset-step1');
+      const s2 = document.getElementById('reset-step2');
+      const hid = document.getElementById('reset-email-hidden');
+      if (s1) s1.classList.add('hidden');
+      if (s2) s2.classList.remove('hidden');
+      if (hid) hid.value = email;
     }, 1500);
   } catch(e) {
     erroAuth(erro, 'Erro de conexão. Tente novamente.');
