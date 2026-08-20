@@ -319,6 +319,11 @@ button{cursor:pointer}
         </div>
         <div class="kpi-grid" id="kpis"></div>
         <div id="alertas"></div>
+        <!-- Caixinhas de provisionamento -->
+        <div id="prov-section" class="hidden">
+          <div class="sec-label">💰 Caixinhas de provisionamento</div>
+          <div id="prov-cards"></div>
+        </div>
         <div class="sec-label">Orçamento por categoria</div>
         <div id="barras"></div>
       </div>
@@ -402,6 +407,15 @@ button{cursor:pointer}
             <button onclick="addDesconto()" style="background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--accent);font-size:13px;width:100%">+ Adicionar desconto</button>
           </div>
           <div id="sal-resultado" class="sal-resultado hidden"></div>
+        </div>
+        <!-- Caixinhas -->
+        <div class="config-section">
+          <h3>💰 Caixinhas de provisionamento</h3>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">
+            Define um valor mensal por categoria. Ao lançar um gasto, marque "Debitar da caixinha" para descontar do saldo.
+          </p>
+          <div id="prov-config-lista"></div>
+          <button onclick="addCaixinha()" style="width:100%;padding:10px;background:var(--faint);border:1px solid var(--border);border-radius:8px;color:var(--accent);font-size:13px;margin-top:4px">+ Adicionar caixinha</button>
         </div>
         <div class="config-section">
           <h3>💳 Cartão de crédito</h3>
@@ -500,6 +514,17 @@ button{cursor:pointer}
       </div>
     </div>
 
+    <!-- Toggle caixinha (aparece só para saídas com categoria provisionável) -->
+    <div id="bloco-prov" class="hidden">
+      <div class="prov-toggle-row" onclick="toggleProv()">
+        <div>
+          <div class="prov-toggle-label">💰 Debitar da caixinha</div>
+          <div class="prov-toggle-sub" id="prov-toggle-sub">Saldo disponível: —</div>
+        </div>
+        <div class="prov-switch" id="prov-switch"></div>
+      </div>
+      <input type="hidden" id="f-provisionado" value="0">
+    </div>
     <div class="field"><label>Observação</label><input type="text" id="f-obs" placeholder="Opcional"></div>
     <!-- Recorrente -->
     <div id="bloco-recorrente" class="recorrente-row">
@@ -932,6 +957,7 @@ async function carregarDados() {
       if (el) el.value = USER.dia_fechamento;
     }
     setSyncStatus('ok', 'Sincronizado · ' + horaAtual());
+    carregarCaixinhas(data.config);
     renderAll();
   } catch(e) {
     if (e.message !== 'Sessão expirada') setSyncStatus('err', 'Erro ao sincronizar');
@@ -1458,6 +1484,7 @@ async function salvarLancamento() {
     pagamento: tipoSel==='Saída'?pagSel:'',
     parcAtual: isParcelado ? String(parcAtual) : '',
     parcTotal: isParcelado ? String(parcTotal) : '',
+    provisionado: document.getElementById('f-provisionado')?.value || '0',
   };
 
   // Se for parcelado novo com mais de 1 parcela, gera todas automaticamente
@@ -1833,6 +1860,205 @@ async function redefinirSenha() {
     btn.textContent = 'Redefinir senha'; btn.classList.remove('loading');
   }
 }
+
+
+// ══════════════════════════════════════════════════
+// CAIXINHAS DE PROVISIONAMENTO
+// ══════════════════════════════════════════════════
+
+// Categorias que suportam caixinha por padrão
+const CATS_PROV_DEFAULT = [
+  { cat: 'Mercado',     emoji: '🛒', valor: 800  },
+  { cat: 'Alimentação', emoji: '🍽️', valor: 400  },
+  { cat: 'Transporte',  emoji: '🚗', valor: 400  },
+];
+
+let caixinhas = []; // [{cat, emoji, valor, ativo}]
+
+function getCaixinha(cat) {
+  return caixinhas.find(c => c.cat === cat && c.ativo);
+}
+
+// Calcula saldo restante de uma caixinha no mês atual
+function saldoCaixinha(cat) {
+  const cx = getCaixinha(cat);
+  if (!cx) return null;
+  const list = getLancs(curMes, curAno);
+  // Gastos provisionados nesta categoria no mês
+  const gasto = list.filter(l =>
+    l.tipo === 'Saída' &&
+    l.categoria === cat &&
+    String(l.provisionado) === '1'
+  ).reduce((a,l) => a + Number(l.valor), 0);
+  return { total: cx.valor, gasto, saldo: cx.valor - gasto };
+}
+
+// Renderiza cards de caixinhas no Resumo
+function renderProvisioning() {
+  const section = document.getElementById('prov-section');
+  const container = document.getElementById('prov-cards');
+  if (!section || !container) return;
+
+  const ativas = caixinhas.filter(c => c.ativo);
+  if (!ativas.length) { section.classList.add('hidden'); return; }
+  section.classList.remove('hidden');
+
+  container.innerHTML = ativas.map(cx => {
+    const s = saldoCaixinha(cx.cat);
+    if (!s) return '';
+    const pct  = Math.min(s.gasto / s.total, 1);
+    const cor  = pct >= 1 ? 'var(--danger)' : pct >= 0.75 ? 'var(--warn)' : 'var(--accent)';
+    const pctBar = Math.round(pct * 100);
+    return `<div class="prov-card">
+      <div class="prov-header">
+        <div class="prov-name">${cx.emoji} ${cx.cat}</div>
+        <div class="prov-saldo">
+          <div class="prov-valor" style="color:${cor}">${fmt(s.saldo)}</div>
+          <div class="prov-meta">de ${fmt(s.total)} · usado ${fmt(s.gasto)}</div>
+        </div>
+      </div>
+      <div class="prov-bar">
+        <div class="prov-fill" style="width:${pctBar}%;background:${cor}"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Config: renderiza lista de caixinhas editáveis
+function renderProvConfig() {
+  const el = document.getElementById('prov-config-lista');
+  if (!el) return;
+  el.innerHTML = caixinhas.map((cx, i) => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <input type="text" value="${cx.emoji}" placeholder="🛒"
+        style="width:44px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center;font-size:16px"
+        oninput="caixinhas[${i}].emoji=this.value">
+      <input type="text" value="${cx.cat}" placeholder="Categoria"
+        style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px"
+        oninput="caixinhas[${i}].cat=this.value">
+      <input type="number" value="${cx.valor}" placeholder="Valor"
+        style="width:90px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:right;color:var(--text);font-size:13px"
+        oninput="caixinhas[${i}].valor=parseFloat(this.value)||0">
+      <button onclick="removeCaixinha(${i})"
+        style="background:var(--faint);border:none;border-radius:8px;width:32px;height:32px;color:var(--danger);font-size:16px">×</button>
+    </div>`).join('');
+}
+
+function addCaixinha() {
+  caixinhas.push({ cat: '', emoji: '💰', valor: 0, ativo: true });
+  renderProvConfig();
+}
+
+function removeCaixinha(i) {
+  caixinhas.splice(i, 1);
+  renderProvConfig();
+}
+
+// Salva caixinhas no servidor junto com config
+function salvarCaixinhas() {
+  USER.caixinhas = caixinhas;
+  localStorage.setItem('cf_user', JSON.stringify(USER));
+  // Salva via config no servidor
+  apiAuth('config', { config: { caixinhas: JSON.stringify(caixinhas) } }).catch(() => {});
+}
+
+// Carrega caixinhas do USER ou defaults
+function carregarCaixinhas(config) {
+  if (config && config.caixinhas) {
+    try { caixinhas = JSON.parse(config.caixinhas); return; } catch(e) {}
+  }
+  if (USER.caixinhas && USER.caixinhas.length) {
+    caixinhas = USER.caixinhas; return;
+  }
+  // Defaults
+  caixinhas = CATS_PROV_DEFAULT.map(c => ({...c, ativo: true}));
+}
+
+// Toggle no formulário de lançamento
+let provAtivo = false;
+
+function toggleProv() {
+  provAtivo = !provAtivo;
+  document.getElementById('prov-switch').classList.toggle('on', provAtivo);
+  document.getElementById('f-provisionado').value = provAtivo ? '1' : '0';
+}
+
+// Atualiza bloco de caixinha no formulário conforme categoria selecionada
+function atualizarBlocoProv() {
+  const cat   = document.getElementById('f-cat')?.value;
+  const bloco = document.getElementById('bloco-prov');
+  const sub   = document.getElementById('prov-toggle-sub');
+  if (!bloco) return;
+
+  // Só aparece para Saídas com caixinha ativa
+  if (tipoSel !== 'Saída' || !getCaixinha(cat)) {
+    bloco.classList.add('hidden');
+    provAtivo = false;
+    document.getElementById('prov-switch')?.classList.remove('on');
+    document.getElementById('f-provisionado').value = '0';
+    return;
+  }
+
+  bloco.classList.remove('hidden');
+  const s = saldoCaixinha(cat);
+  if (s && sub) {
+    const cor = s.saldo <= 0 ? 'var(--danger)' : s.saldo < s.total * 0.25 ? 'var(--warn)' : 'var(--accent)';
+    sub.innerHTML = `Saldo disponível: <strong style="color:${cor}">${fmt(s.saldo)}</strong>`;
+  }
+}
+
+// Override atualizarCats e setTipo para acionar checagem de caixinha
+const _origAtualizarCats = atualizarCats;
+atualizarCats = function() {
+  _origAtualizarCats();
+  setTimeout(atualizarBlocoProv, 0);
+};
+
+const _origAtualizarSubs = atualizarSubs;
+atualizarSubs = function() {
+  _origAtualizarSubs();
+  setTimeout(atualizarBlocoProv, 0);
+};
+
+// Override salvarConfig para incluir caixinhas
+const _origSalvarConfig = salvarConfig;
+salvarConfig = async function() {
+  // Atualiza caixinhas da config antes de salvar
+  caixinhas = caixinhas.map((cx, i) => {
+    const inputs = document.querySelectorAll('#prov-config-lista > div');
+    return cx; // valores já atualizados via oninput
+  }).filter(cx => cx.cat);
+  USER.caixinhas = caixinhas;
+  localStorage.setItem('cf_user', JSON.stringify(USER));
+  await _origSalvarConfig();
+  renderProvConfig();
+  renderProvisioning();
+};
+
+// Override irPara para renderizar config de caixinhas
+const _origIrPara = irPara;
+irPara = function(id, btn) {
+  _origIrPara(id, btn);
+  if (id === 'config') {
+    renderProvConfig();
+  }
+  if (id === 'resumo') {
+    renderProvisioning();
+  }
+};
+
+// Override renderResumo para incluir caixinhas
+const _origRenderResumo = renderResumo;
+renderResumo = function() {
+  _origRenderResumo();
+  renderProvisioning();
+};
+
+// Override carregarDados para carregar caixinhas
+const _origCarregarDados = carregarDados;
+carregarDados = async function() {
+  await _origCarregarDados();
+};
 
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){fecharModal();closeFab();} });
 init();
