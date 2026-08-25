@@ -324,8 +324,7 @@ button{cursor:pointer}
           <div class="sec-label">💰 Caixinhas de provisionamento</div>
           <div id="prov-cards"></div>
         </div>
-        <div class="sec-label">Orçamento por categoria</div>
-        <div id="barras"></div>
+        <div id="barras" class="hidden"></div>
       </div>
 
       <!-- HISTÓRICO -->
@@ -1071,11 +1070,13 @@ function renderResumo() {
   if (parcs.length) al.push({tipo:'warn',icon:'📅',txt:`<strong>${parcs.length} compra${parcs.length>1?'s':''} parcelada${parcs.length>1?'s':''}</strong><span> no cartão</span>`});
   if (ent>0&&pctInv<0.15&&inv>0) al.push({tipo:'warn',icon:'⚠️',txt:`Poupança em <strong>${pctFmt(pctInv)}</strong><span> — meta é 20%</span>`});
   if (ent===0) al.push({tipo:'info',icon:'📥',txt:`<span>Nenhuma entrada registrada neste mês ainda.</span>`});
-  Object.keys(metas).forEach(cat=>{
-    const g=sumCat(list,cat), m=metas[cat]; if(!m) return;
-    const p=g/m;
-    if(p>1) al.push({tipo:'danger',icon:'🔴',txt:`<strong>${cat}</strong>: ${fmt(g)} de ${fmt(m)}<span> — acima em ${fmt(g-m)}</span>`});
-    else if(p>0.85) al.push({tipo:'warn',icon:'🟡',txt:`<strong>${cat}</strong>:<span> ${Math.round(p*100)}% do orçamento usado</span>`});
+  // Alertas de caixinhas de provisionamento
+  (caixinhas||[]).filter(c=>c.ativo&&c.valor>0).forEach(cx=>{
+    const s = saldoCaixinha(cx.cat);
+    if (!s) return;
+    const pct = s.gasto / s.total;
+    if (pct >= 1) al.push({tipo:'danger',icon:'💰',txt:`Caixinha <strong>${cx.cat}</strong>: esgotada (${fmt(s.gasto)} de ${fmt(s.total)})`});
+    else if (pct >= 0.75) al.push({tipo:'warn',icon:'💰',txt:`Caixinha <strong>${cx.cat}</strong>:<span> ${Math.round(pct*100)}% utilizada — saldo ${fmt(s.saldo)}</span>`});
   });
   if (!al.length && saldo>=0) al.push({tipo:'ok',icon:'✅',txt:`<span>Tudo dentro do orçamento — saldo de </span><strong>${fmt(saldo)}</strong>`});
   document.getElementById('alertas').innerHTML = al.map(a=>`<div class="alert ${a.tipo}"><div class="alert-icon">${a.icon}</div><div>${a.txt}</div></div>`).join('');
@@ -1193,8 +1194,11 @@ function renderFluxo() {
     const inv    = sum(listMes, 'Investimento');
     const fatura = lancamentosDaFatura(m, curAno).reduce((a,l)=>a+Number(l.valor),0);
 
-    // Saídas totais = pix/débito + fatura CC que vence neste mês + investimentos
-    const saiTotal = saiPix + fatura + inv;
+    // Provisionamento: valor fixo mensal das caixinhas ativas
+    const provTotal = (caixinhas||[]).filter(c=>c.ativo&&c.valor>0).reduce((a,c)=>a+c.valor,0);
+
+    // Saídas totais = pix/débito + fatura CC + investimentos + provisionamento
+    const saiTotal = saiPix + fatura + inv + provTotal;
     const saldoMes = saldoAcum + ent - saiTotal;
 
     totEnt+=ent; totSai+=saiTotal; totFat+=fatura; totInv+=inv;
