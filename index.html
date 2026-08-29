@@ -996,7 +996,7 @@ function irPara(id, btn) {
     calcularSalario();
   }
 }
-function renderAll() { renderResumo(); renderHistorico(); if (visaoTab) renderVisao(); renderProjecao(); }
+function renderAll() { renderResumo(); renderHistorico(); if (visaoTab) renderVisao(); renderProjecao(); if (typeof renderProvisioning === 'function') renderProvisioning(); }
 
 // ══════════════════════════════════════════════════
 // HELPERS
@@ -2000,7 +2000,6 @@ function carregarCaixinhas(config) {
 }
 
 // Toggle no formulário de lançamento
-let provAtivo = false;
 
 function toggleProv() {
   provAtivo = !provAtivo;
@@ -2060,15 +2059,15 @@ salvarConfig = async function() {
   renderProvisioning();
 };
 
-// Override irPara para renderizar config de caixinhas
+// Override irPara para caixinhas + garantir fluxo de caixa
 const _origIrPara = irPara;
 irPara = function(id, btn) {
   _origIrPara(id, btn);
-  if (id === 'config') {
-    renderProvConfig();
-  }
-  if (id === 'resumo') {
-    renderProvisioning();
+  if (id === 'config') renderProvConfig();
+  if (id === 'resumo')  renderProvisioning();
+  if (id === 'visao') {
+    // Garante que o fluxo de caixa renderiza com caixinhas carregadas
+    setTimeout(() => renderVisao(), 50);
   }
 };
 
