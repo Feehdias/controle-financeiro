@@ -1199,16 +1199,17 @@ function renderFluxo() {
     const isMesPassado = (y < hoje_check.getFullYear()) ||
                          (y === hoje_check.getFullYear() && m < hoje_check.getMonth());
     const isMesAtual   = y === hoje_check.getFullYear() && m === hoje_check.getMonth();
-    const provFixo = (caixinhas||[]).filter(c=>c.ativo&&c.valor>0).reduce((a,c)=>a+c.valor,0);
+    const _cx = (typeof caixinhas !== 'undefined' ? caixinhas : []) || [];
+    const provFixo = _cx.filter(c=>c.ativo&&c.valor>0).reduce((a,c)=>a+c.valor,0);
 
     let provTotal = 0;
     if (isMesPassado) {
       // Meses passados: usa gasto real provisionado
-      provTotal = listMes.filter(l => l.tipo==='Saida' && String(l.provisionado)==='1')
+      provTotal = listMes.filter(l => l.tipo==='Saída' && String(l.provisionado)==='1')
                          .reduce((a,l) => a+Number(l.valor), 0);
     } else if (isMesAtual) {
       // Mês atual: usa gasto real se houver, senão usa valor fixo como previsão
-      const gastoProv = listMes.filter(l => l.tipo==='Saida' && String(l.provisionado)==='1')
+      const gastoProv = listMes.filter(l => l.tipo==='Saída' && String(l.provisionado)==='1')
                                .reduce((a,l) => a+Number(l.valor), 0);
       provTotal = gastoProv > 0 ? gastoProv : provFixo;
     } else {
@@ -1223,7 +1224,7 @@ function renderFluxo() {
     totEnt+=ent; totSai+=saiTotal; totFat+=fatura; totInv+=inv;
 
     const isAtual  = m===hoje_m && curAno===hoje_y;
-    const temDados = ent||saiTotal||saldoAcum!==0;
+    const temDados = ent||saiTotal||saldoAcum!==0||provTotal>0;
     const saldoCor = saldoMes>=0?'var(--accent)':'var(--danger)';
 
     const isFuturo = !isMesPassado && !isMesAtual;
