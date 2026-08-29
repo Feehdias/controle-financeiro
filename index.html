@@ -1194,8 +1194,27 @@ function renderFluxo() {
     const inv    = sum(listMes, 'Investimento');
     const fatura = lancamentosDaFatura(m, curAno).reduce((a,l)=>a+Number(l.valor),0);
 
-    // Provisionamento: valor fixo mensal das caixinhas ativas
-    const provTotal = (caixinhas||[]).filter(c=>c.ativo&&c.valor>0).reduce((a,c)=>a+c.valor,0);
+    // Provisionamento inteligente por mês
+    const hoje_check = new Date();
+    const isMesPassado = (y < hoje_check.getFullYear()) ||
+                         (y === hoje_check.getFullYear() && m < hoje_check.getMonth());
+    const isMesAtual   = y === hoje_check.getFullYear() && m === hoje_check.getMonth();
+    const provFixo = (caixinhas||[]).filter(c=>c.ativo&&c.valor>0).reduce((a,c)=>a+c.valor,0);
+
+    let provTotal = 0;
+    if (isMesPassado) {
+      // Meses passados: usa gasto real provisionado
+      provTotal = listMes.filter(l => l.tipo==='Saida' && String(l.provisionado)==='1')
+                         .reduce((a,l) => a+Number(l.valor), 0);
+    } else if (isMesAtual) {
+      // Mês atual: usa gasto real se houver, senão usa valor fixo como previsão
+      const gastoProv = listMes.filter(l => l.tipo==='Saida' && String(l.provisionado)==='1')
+                               .reduce((a,l) => a+Number(l.valor), 0);
+      provTotal = gastoProv > 0 ? gastoProv : provFixo;
+    } else {
+      // Meses futuros: usa valor fixo como estimativa
+      provTotal = provFixo;
+    }
 
     // Saídas totais = pix/débito + fatura CC + investimentos + provisionamento
     const saiTotal = saiPix + fatura + inv + provTotal;
@@ -1207,8 +1226,10 @@ function renderFluxo() {
     const temDados = ent||saiTotal||saldoAcum!==0;
     const saldoCor = saldoMes>=0?'var(--accent)':'var(--danger)';
 
-    html += `<div class="fluxo-row ${isAtual?'atual':''}" style="grid-template-columns:${COLS}">
-      <div class="fluxo-mes">${MESES_ABR[m]}${isAtual?' ←':''}</div>
+    const isFuturo = !isMesPassado && !isMesAtual;
+    const mesLabel = isMesAtual ? MESES_ABR[m]+' ←' : isFuturo ? MESES_ABR[m]+'*' : MESES_ABR[m];
+    html += `<div class="fluxo-row ${isAtual?'atual':''}" style="grid-template-columns:${COLS};${isFuturo?'opacity:0.75':''}">
+      <div class="fluxo-mes">${mesLabel}</div>
       <div class="fluxo-val" style="color:var(--accent)">${ent>0?fmt(ent):'—'}</div>
       <div class="fluxo-val" style="color:var(--danger);font-weight:600">${saiTotal>0?fmt(saiTotal):'—'}</div>
       <div class="fluxo-val" style="color:var(--purple);font-size:11px">${fatura>0?fmt(fatura):'—'}</div>
