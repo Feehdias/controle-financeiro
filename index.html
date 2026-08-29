@@ -1215,8 +1215,8 @@ function renderFluxo() {
       provTotal = provFixo;
     }
 
-    // Saídas totais = pix/débito + fatura CC + investimentos + provisionamento
-    const saiTotal = saiPix + fatura + inv + provTotal;
+    // Saídas totais = pix/débito + fatura CC + investimentos (SEM provisionamento — é só informativo)
+    const saiTotal = saiPix + fatura + inv;
     const saldoMes = saldoAcum + ent - saiTotal;
 
     totEnt+=ent; totSai+=saiTotal; totFat+=fatura; totInv+=inv;
