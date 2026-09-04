@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Finanças</title>
 <link rel="manifest" href="manifest.json">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <style>
@@ -174,6 +175,24 @@ button{cursor:pointer}
 .empty-icon{font-size:40px;margin-bottom:12px}
 .empty p{font-size:14px;line-height:1.6}
 .hidden{display:none!important}
+/* Análises */
+.anomalia-card{background:var(--card);border-radius:var(--radius);padding:13px;margin-bottom:8px;border-left:3px solid var(--border)}
+.anomalia-card.danger{border-left-color:var(--danger);background:#ff525210}
+.anomalia-card.warn{border-left-color:var(--warn);background:#ffb83010}
+.anomalia-card.ok{border-left-color:var(--accent);background:#00c89610}
+.anomalia-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.anomalia-nome{font-size:13px;font-weight:600}
+.anomalia-zscore{font-size:12px;font-weight:700;padding:2px 8px;border-radius:20px}
+.composicao-item{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:6px}
+.composicao-emoji{font-size:18px;flex-shrink:0}
+.composicao-info{flex:1;min-width:0}
+.composicao-nome{font-size:13px;font-weight:500}
+.composicao-bar-wrap{height:4px;background:var(--faint);border-radius:2px;margin-top:4px}
+.composicao-bar-fill{height:100%;border-radius:2px}
+.composicao-pct{font-size:13px;font-weight:700;flex-shrink:0}
+.previsao-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px}
+.previsao-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.previsao-row:last-child{border-bottom:none}
 /* Auth */
 .auth-header{display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
 .auth-user{font-size:14px;font-weight:600}
@@ -377,6 +396,39 @@ button{cursor:pointer}
         <button class="btn-save-metas" onclick="salvarMetas()">Salvar metas</button>
       </div>
 
+      <!-- ANÁLISES -->
+      <div class="page" id="page-analises">
+        <div class="month-bar">
+          <div class="month-title">Análises</div>
+          <div class="month-nav">
+            <button onclick="mudarMesAnalise(-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <button onclick="mudarMesAnalise(1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+          </div>
+        </div>
+
+        <!-- Anomalias -->
+        <div class="sec-label">🚨 Detecção de anomalias</div>
+        <div id="analise-anomalias"></div>
+
+        <!-- Tendência -->
+        <div class="sec-label" style="margin-top:20px">📈 Tendência de gastos — últimos 6 meses</div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:8px">
+          <canvas id="chart-tendencia" height="180"></canvas>
+        </div>
+
+        <!-- Composição -->
+        <div class="sec-label" style="margin-top:20px">🥧 Composição de gastos — % da renda</div>
+        <div id="analise-composicao"></div>
+
+        <!-- Previsão -->
+        <div class="sec-label" style="margin-top:20px">🔮 Previsão para o próximo mês</div>
+        <div id="analise-previsao"></div>
+
+        <!-- Crédito -->
+        <div class="sec-label" style="margin-top:20px">💳 Impacto do crédito nos próximos meses</div>
+        <div id="analise-credito"></div>
+      </div>
+
       <!-- CONFIGURAÇÕES -->
       <div class="page" id="page-config">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
@@ -451,6 +503,9 @@ button{cursor:pointer}
       </button>
       <button class="nav-btn" onclick="irPara('projecao',this)">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Projeção
+      </button>
+      <button class="nav-btn" onclick="irPara('analises',this)">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/><circle cx="19" cy="5" r="2"/></svg>Análises
       </button>
       <button class="nav-btn" onclick="irPara('config',this)">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Config
@@ -2047,16 +2102,14 @@ salvarConfig = async function() {
   renderProvisioning();
 };
 
-// Override irPara para caixinhas + garantir fluxo de caixa
+// Override irPara para caixinhas + análises
 const _origIrPara = irPara;
 irPara = function(id, btn) {
   _origIrPara(id, btn);
-  if (id === 'config') renderProvConfig();
-  if (id === 'resumo')  renderProvisioning();
-  if (id === 'visao') {
-    // Garante que o fluxo de caixa renderiza com caixinhas carregadas
-    setTimeout(() => renderVisao(), 50);
-  }
+  if (id === 'config')   renderProvConfig();
+  if (id === 'resumo')   renderProvisioning();
+  if (id === 'visao')    setTimeout(() => renderVisao(), 50);
+  if (id === 'analises') setTimeout(() => renderAnalises(), 50);
 };
 
 // Override renderResumo para incluir caixinhas
@@ -2079,6 +2132,279 @@ function salvarProvMes(ano, mes, valor) {
   if (v > 0) localStorage.setItem(key, v);
   else localStorage.removeItem(key);
   renderVisao(); // re-renderiza o fluxo com novo valor
+}
+
+
+// ══════════════════════════════════════════════════
+// ANÁLISES — Data Science
+// ══════════════════════════════════════════════════
+let analiseMes = new Date().getMonth();
+let analiseAno = new Date().getFullYear();
+let chartTendencia = null;
+
+function mudarMesAnalise(d) {
+  analiseMes += d;
+  if (analiseMes > 11) { analiseMes = 0; analiseAno++; }
+  if (analiseMes < 0)  { analiseMes = 11; analiseAno--; }
+  renderAnalises();
+}
+
+// ── Utilitários estatísticos ──────────────────────
+function mean(arr)  { return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0; }
+function std(arr)   {
+  if (arr.length < 2) return 0;
+  const m = mean(arr);
+  return Math.sqrt(arr.reduce((a,b)=>a+(b-m)**2,0)/arr.length);
+}
+function zscore(v, m, s) { return s === 0 ? 0 : (v - m) / s; }
+
+// Retorna gastos de uma categoria nos últimos N meses (excluindo o atual)
+function historicoCategoria(cat, nMeses, mesBase, anoBase) {
+  const result = [];
+  for (let i = nMeses; i >= 1; i--) {
+    let m = mesBase - i, y = anoBase;
+    if (m < 0) { m += 12; y--; }
+    const list = getLancs(m, y);
+    const total = list.filter(l=>l.tipo==='Saída'&&l.categoria===cat).reduce((a,l)=>a+Number(l.valor),0);
+    result.push({ m, y, total });
+  }
+  return result;
+}
+
+// ── Anomalias ─────────────────────────────────────
+function renderAnomalias() {
+  const list = getLancs(analiseMes, analiseAno);
+  const cats = [...new Set(list.filter(l=>l.tipo==='Saída').map(l=>l.categoria))];
+  const el   = document.getElementById('analise-anomalias');
+  if (!el) return;
+
+  const items = cats.map(cat => {
+    const hist  = historicoCategoria(cat, 6, analiseMes, analiseAno).map(h=>h.total).filter(v=>v>0);
+    if (hist.length < 2) return null;
+    const atual = list.filter(l=>l.tipo==='Saída'&&l.categoria===cat).reduce((a,l)=>a+Number(l.valor),0);
+    const m     = mean(hist);
+    const s     = std(hist);
+    const z     = zscore(atual, m, s);
+    const pct   = m > 0 ? Math.round(((atual-m)/m)*100) : 0;
+    return { cat, atual, media: m, z, pct, s };
+  }).filter(Boolean).sort((a,b) => Math.abs(b.z) - Math.abs(a.z));
+
+  if (!items.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><p>Histórico insuficiente. Lance pelo menos 3 meses para detectar anomalias.</p></div>';
+    return;
+  }
+
+  el.innerHTML = items.map(item => {
+    const cls   = Math.abs(item.z) > 2 ? 'danger' : Math.abs(item.z) > 1.5 ? 'warn' : 'ok';
+    const label = cls==='danger' ? '🚨 Anomalia' : cls==='warn' ? '⚠️ Atenção' : '✅ Normal';
+    const cor   = cls==='danger' ? 'var(--danger)' : cls==='warn' ? 'var(--warn)' : 'var(--accent)';
+    const dir   = item.pct > 0 ? `+${item.pct}% acima` : `${item.pct}% abaixo`;
+    return `<div class="anomalia-card ${cls}">
+      <div class="anomalia-header">
+        <div class="anomalia-nome">${EMOJI[item.cat]||'📌'} ${item.cat}</div>
+        <div class="anomalia-zscore" style="background:${cor}20;color:${cor}">${label} · z=${item.z.toFixed(1)}</div>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">
+        Atual: <strong style="color:var(--text)">${fmt(item.atual)}</strong>
+        · Média hist.: ${fmt(item.media)}
+        · ${dir} da média
+      </div>
+      ${Math.abs(item.z) > 1.5 ? `<div style="font-size:11px;color:${cor};margin-top:4px">
+        ${item.z > 0 ? 'Gasto acima do padrão histórico — verifique se há compra extraordinária.' : 'Gasto abaixo do padrão — possível economia ou mês atípico.'}
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── Tendência ─────────────────────────────────────
+function renderTendencia() {
+  const canvas = document.getElementById('chart-tendencia');
+  if (!canvas) return;
+  if (chartTendencia) { chartTendencia.destroy(); chartTendencia = null; }
+
+  const meses = [], entradas = [], saidas = [], saldos = [];
+  for (let i = 5; i >= 0; i--) {
+    let m = analiseMes - i, y = analiseAno;
+    if (m < 0) { m += 12; y--; }
+    const list = getLancs(m, y);
+    const ent  = sum(list, 'Entrada');
+    const sai  = sum(list, 'Saída') + sum(list, 'Investimento');
+    meses.push(MESES_ABR[m] + '/' + String(y).slice(2));
+    entradas.push(ent);
+    saidas.push(sai);
+    saldos.push(ent - sai);
+  }
+
+  chartTendencia = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: meses,
+      datasets: [
+        { label: 'Entradas', data: entradas, backgroundColor: 'rgba(0,200,150,0.5)', borderColor: '#00c896', borderWidth: 1, borderRadius: 4 },
+        { label: 'Saídas',   data: saidas,   backgroundColor: 'rgba(255,82,82,0.5)',  borderColor: '#ff5252', borderWidth: 1, borderRadius: 4 },
+        { label: 'Saldo',    data: saldos,   type: 'line', borderColor: '#0099ff', borderWidth: 2, pointRadius: 4, fill: false, tension: 0.3 },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#7a9ab0', font: { size: 11 }, boxWidth: 14 } },
+        tooltip: { callbacks: { label: ctx => ' ' + fmt(ctx.parsed.y) } }
+      },
+      scales: {
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#7a9ab0', callback: v => 'R$'+Math.round(v/1000)+'k' }, border: { display: false } },
+        x: { grid: { display: false }, ticks: { color: '#7a9ab0' }, border: { display: false } }
+      }
+    }
+  });
+}
+
+// ── Composição de gastos ──────────────────────────
+function renderComposicao() {
+  const el   = document.getElementById('analise-composicao');
+  if (!el) return;
+  const list = getLancs(analiseMes, analiseAno);
+  const ent  = sum(list, 'Entrada');
+  const cats = {};
+  list.filter(l=>l.tipo==='Saída').forEach(l => {
+    cats[l.categoria] = (cats[l.categoria]||0) + Number(l.valor);
+  });
+  const sorted = Object.entries(cats).sort((a,b)=>b[1]-a[1]);
+  if (!sorted.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><p>Nenhuma saída neste mês.</p></div>'; return; }
+  const totalSai = sorted.reduce((a,[,v])=>a+v,0);
+
+  el.innerHTML = sorted.map(([cat, val]) => {
+    const pctRenda = ent > 0 ? Math.round((val/ent)*100) : 0;
+    const pctGasto = totalSai > 0 ? Math.round((val/totalSai)*100) : 0;
+    const cor = COR[cat] || '#94a3b8';
+    const alerta = pctRenda > 30 ? ' ⚠️' : '';
+    return `<div class="composicao-item">
+      <div class="composicao-emoji">${EMOJI[cat]||'📌'}</div>
+      <div class="composicao-info">
+        <div class="composicao-nome">${cat}${alerta}</div>
+        <div class="composicao-bar-wrap"><div class="composicao-bar-fill" style="width:${pctGasto}%;background:${cor}"></div></div>
+      </div>
+      <div style="text-align:right">
+        <div class="composicao-pct" style="color:${cor}">${pctGasto}%</div>
+        <div style="font-size:11px;color:var(--muted)">${pctRenda}% renda</div>
+      </div>
+    </div>`;
+  }).join('') + `<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px">% da renda total de ${fmt(ent)} · ⚠️ = categoria acima de 30% da renda</div>`;
+}
+
+// ── Previsão próximo mês ──────────────────────────
+function renderPrevisao() {
+  const el = document.getElementById('analise-previsao');
+  if (!el) return;
+  let proxM = analiseMes + 1, proxY = analiseAno;
+  if (proxM > 11) { proxM = 0; proxY++; }
+
+  // Coleta todas as categorias com histórico
+  const allCats = new Set();
+  for (let i=1; i<=3; i++) {
+    let m = analiseMes - i, y = analiseAno;
+    if (m < 0) { m += 12; y--; }
+    getLancs(m, y).filter(l=>l.tipo==='Saída').forEach(l => allCats.add(l.categoria));
+  }
+
+  const previsoes = [];
+  allCats.forEach(cat => {
+    const hist = [];
+    for (let i=1; i<=3; i++) {
+      let m = analiseMes - i, y = analiseAno;
+      if (m < 0) { m += 12; y--; }
+      const v = getLancs(m, y).filter(l=>l.tipo==='Saída'&&l.categoria===cat).reduce((a,l)=>a+Number(l.valor),0);
+      if (v > 0) hist.push(v);
+    }
+    if (hist.length > 0) {
+      const media = mean(hist);
+      const s     = std(hist);
+      previsoes.push({ cat, media, s, hist });
+    }
+  });
+
+  previsoes.sort((a,b) => b.media - a.media);
+  const totalPrev = previsoes.reduce((a,p)=>a+p.media, 0);
+
+  el.innerHTML = `<div class="previsao-card">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+      Previsão baseada na média dos últimos 3 meses. Quanto maior o desvio padrão, menos previsível é o gasto.
+    </div>
+    ${previsoes.map(p => `
+      <div class="previsao-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span>${EMOJI[p.cat]||'📌'}</span>
+          <div>
+            <div style="font-size:13px;font-weight:500">${p.cat}</div>
+            <div style="font-size:11px;color:var(--muted)">±${fmt(p.s)} variação</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:14px;font-weight:700;color:var(--danger)">${fmt(p.media)}</div>
+          <div style="font-size:11px;color:var(--muted)">estimado</div>
+        </div>
+      </div>`).join('')}
+    <div class="previsao-row" style="margin-top:4px">
+      <div style="font-size:14px;font-weight:700">Total previsto</div>
+      <div style="font-size:16px;font-weight:700;color:var(--danger)">${fmt(totalPrev)}</div>
+    </div>
+  </div>`;
+}
+
+// ── Impacto do crédito ────────────────────────────
+function renderCredito() {
+  const el = document.getElementById('analise-credito');
+  if (!el) return;
+
+  // Agrupa parcelas futuras por mês de vencimento
+  const faturas = {};
+  lancamentos.forEach(l => {
+    if (l.tipo !== 'Saída' || l.pagamento !== 'Cartão') return;
+    const f = faturaDoLancamento(l);
+    if (!f) return;
+    const key = `${f.ano}-${f.mes}`;
+    if (!faturas[key]) faturas[key] = { mes: f.mes, ano: f.ano, total: 0, items: [] };
+    faturas[key].total += Number(l.valor);
+    faturas[key].items.push(l);
+  });
+
+  const sorted = Object.values(faturas)
+    .filter(f => f.ano > analiseAno || (f.ano === analiseAno && f.mes >= analiseMes))
+    .sort((a,b) => a.ano !== b.ano ? a.ano-b.ano : a.mes-b.mes)
+    .slice(0, 6);
+
+  if (!sorted.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">💳</div><p>Nenhuma parcela futura encontrada.</p></div>';
+    return;
+  }
+
+  el.innerHTML = sorted.map(f => {
+    const isAtual = f.mes === analiseMes && f.ano === analiseAno;
+    return `<div class="previsao-card" style="${isAtual?'border-color:var(--purple)':''}">
+      <div class="previsao-row">
+        <div>
+          <div style="font-size:14px;font-weight:700">${MESES[f.mes]} ${f.ano}${isAtual?' ← atual':''}</div>
+          <div style="font-size:11px;color:var(--muted)">${f.items.length} lançamento(s) no cartão</div>
+        </div>
+        <div style="font-size:18px;font-weight:700;color:var(--purple)">${fmt(f.total)}</div>
+      </div>
+      ${f.items.slice(0,3).map(l=>`
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border);font-size:12px">
+          <span style="color:var(--muted)">${EMOJI[l.categoria]||'📌'} ${l.desc}${Number(l.parcTotal)>1?' ('+l.parcAtual+'/'+l.parcTotal+'x)':''}</span>
+          <span style="font-weight:600">${fmt(l.valor)}</span>
+        </div>`).join('')}
+      ${f.items.length > 3 ? `<div style="font-size:11px;color:var(--muted);text-align:center;padding-top:4px">+ ${f.items.length-3} mais</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── Render principal ──────────────────────────────
+function renderAnalises() {
+  renderAnomalias();
+  renderTendencia();
+  renderComposicao();
+  renderPrevisao();
+  renderCredito();
 }
 
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){fecharModal();closeFab();} });
