@@ -580,14 +580,14 @@ button{cursor:pointer}
       </div>
     </div>
 
-    <!-- Toggle caixinha (aparece só para saídas com categoria provisionável) -->
+    <!-- Info caixinha — aparece automaticamente quando categoria tem caixinha -->
     <div id="bloco-prov" class="hidden">
-      <div class="prov-toggle-row" onclick="toggleProv()">
+      <div style="background:#a855f715;border:1px solid #a855f740;border-radius:10px;padding:10px 13px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
         <div>
-          <div class="prov-toggle-label">💰 Debitar da caixinha</div>
-          <div class="prov-toggle-sub" id="prov-toggle-sub">Saldo disponível: —</div>
+          <div style="font-size:13px;font-weight:500">💰 Débito automático da caixinha</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px" id="prov-toggle-sub">Saldo disponível: —</div>
         </div>
-        <div class="prov-switch" id="prov-switch"></div>
+        <div style="font-size:11px;background:#a855f730;color:var(--purple);padding:3px 8px;border-radius:20px;font-weight:600">AUTO</div>
       </div>
       <input type="hidden" id="f-provisionado" value="0">
     </div>
@@ -1560,9 +1560,14 @@ async function salvarLancamento() {
   const isNovo      = !editandoId;
 
   // Base do lançamento
+  const catSel = document.getElementById('f-cat').value;
+  // Debita caixinha automaticamente se categoria tiver caixinha ativa
+  const temCaixinha = tipoSel === 'Saída' && !!getCaixinha(catSel);
+  const provisionadoVal = temCaixinha ? '1' : (document.getElementById('f-provisionado')?.value || '0');
+
   const base = {
     tipo: tipoSel,
-    categoria: document.getElementById('f-cat').value,
+    categoria: catSel,
     sub: document.getElementById('f-sub').value,
     desc: document.getElementById('f-desc').value,
     valor, data,
@@ -1570,7 +1575,7 @@ async function salvarLancamento() {
     pagamento: tipoSel==='Saída'?pagSel:'',
     parcAtual: isParcelado ? String(parcAtual) : '',
     parcTotal: isParcelado ? String(parcTotal) : '',
-    provisionado: document.getElementById('f-provisionado')?.value || '0',
+    provisionado: provisionadoVal,
   };
 
   // Se for parcelado novo com mais de 1 parcela, gera todas automaticamente
@@ -2086,23 +2091,23 @@ function toggleProv() {
   document.getElementById('f-provisionado').value = provAtivo ? '1' : '0';
 }
 
-// Atualiza bloco de caixinha no formulário conforme categoria selecionada
+// Atualiza bloco de caixinha no formulário — automático
 function atualizarBlocoProv() {
   const cat   = document.getElementById('f-cat')?.value;
   const bloco = document.getElementById('bloco-prov');
   const sub   = document.getElementById('prov-toggle-sub');
   if (!bloco) return;
 
-  // Só aparece para Saídas com caixinha ativa
   if (tipoSel !== 'Saída' || !getCaixinha(cat)) {
     bloco.classList.add('hidden');
-    provAtivo = false;
-    document.getElementById('prov-switch')?.classList.remove('on');
-    document.getElementById('f-provisionado').value = '0';
+    if (document.getElementById('f-provisionado'))
+      document.getElementById('f-provisionado').value = '0';
     return;
   }
 
   bloco.classList.remove('hidden');
+  if (document.getElementById('f-provisionado'))
+    document.getElementById('f-provisionado').value = '1'; // auto
   const s = saldoCaixinha(cat);
   if (s && sub) {
     const cor = s.saldo <= 0 ? 'var(--danger)' : s.saldo < s.total * 0.25 ? 'var(--warn)' : 'var(--accent)';
