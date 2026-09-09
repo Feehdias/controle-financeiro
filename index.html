@@ -1007,15 +1007,13 @@ async function renovarTokenSeNecessario() {
   }
 }
 
-async function carregarDados() {
+async function carregarDados(tentativa = 1) {
   setSyncStatus('loading', 'Sincronizando...');
-  // Tenta renovar token antes de carregar
   if (TOKEN) await renovarTokenSeNecessario();
   try {
     const data = await apiGet();
     lancamentos = data.lancamentos || [];
     if (data.metas) { metas = {...metas, ...data.metas}; localStorage.setItem('cf_metas', JSON.stringify(metas)); }
-    // Atualiza dia fechamento do servidor
     if (data.config && data.config.dia_fechamento) {
       USER.dia_fechamento = Number(data.config.dia_fechamento);
       localStorage.setItem('cf_user', JSON.stringify(USER));
@@ -1026,7 +1024,18 @@ async function carregarDados() {
     carregarCaixinhas(data.config);
     renderAll();
   } catch(e) {
-    if (e.message !== 'Sessão expirada') setSyncStatus('err', 'Erro ao sincronizar');
+    if (e.message === 'Sessão expirada') return;
+    // Retry automático até 3 vezes com delay crescente
+    if (tentativa < 3) {
+      setSyncStatus('loading', 'Reconectando... (' + tentativa + '/3)');
+      await new Promise(r => setTimeout(r, tentativa * 2000));
+      return carregarDados(tentativa + 1);
+    }
+    setSyncStatus('err', 'Erro ao sincronizar — toque para tentar novamente');
+    // Clique no status bar retenta
+    document.getElementById('sync-text').onclick = () => carregarDados();
+    document.getElementById('sync-text').style.cursor = 'pointer';
+    document.getElementById('sync-text').style.textDecoration = 'underline';
   }
 }
 
