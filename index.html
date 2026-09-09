@@ -1270,11 +1270,22 @@ function renderFluxo() {
     const inv    = sum(listMes, 'Investimento');
     const fatura = lancamentosDaFatura(m, curAno).reduce((a,l)=>a+Number(l.valor),0);
 
-    // Provisionamento manual por mês — você define quanto provisiona em cada mês
-    const provKey = `prov_${curAno}_${m}`;
-    const provTotal = parseFloat(localStorage.getItem(provKey) || '0');
+    // Provisionamento manual por mês — valor definido pelo usuário
+    const provDefinido = parseFloat(localStorage.getItem('prov_' + curAno + '_' + m) || '0');
 
-    // Saídas totais = pix/débito + fatura CC + investimentos + provisionamento manual
+    // Gastos reais das categorias com caixinha neste mês
+    const gastosCaixinha = (typeof caixinhas !== 'undefined' ? caixinhas : [])
+      .filter(c => c.ativo && c.valor > 0)
+      .reduce((a, cx) => {
+        const gasto = listMes.filter(l => l.tipo === 'Saída' && l.categoria === cx.cat)
+                              .reduce((s, l) => s + Number(l.valor), 0);
+        return a + gasto;
+      }, 0);
+
+    // Provisionamento no fluxo: usa o maior entre o definido e o gasto real
+    const provTotal = Math.max(provDefinido, gastosCaixinha);
+
+    // Saídas totais = pix/débito (excluindo cat. caixinha) + fatura CC + investimentos + provisionamento
     const saiTotal = saiPix + fatura + inv + provTotal;
     const saldoMes = saldoAcum + ent - saiTotal;
 
@@ -1971,15 +1982,15 @@ function getCaixinha(cat) {
 }
 
 // Calcula saldo restante de uma caixinha no mês atual
-function saldoCaixinha(cat) {
+function saldoCaixinha(cat, mes, ano) {
   const cx = getCaixinha(cat);
   if (!cx) return null;
-  const list = getLancs(curMes, curAno);
-  // Gastos provisionados nesta categoria no mês
+  const m = (mes !== undefined) ? mes : curMes;
+  const y = (ano !== undefined) ? ano : curAno;
+  const list = getLancs(m, y);
+  // Conta TODOS os gastos nesta categoria no mês (caixinha cobre toda a categoria)
   const gasto = list.filter(l =>
-    l.tipo === 'Saída' &&
-    l.categoria === cat &&
-    String(l.provisionado) === '1'
+    l.tipo === 'Saída' && l.categoria === cat
   ).reduce((a,l) => a + Number(l.valor), 0);
   return { total: cx.valor, gasto, saldo: cx.valor - gasto };
 }
