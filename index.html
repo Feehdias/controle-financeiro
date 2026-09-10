@@ -1077,7 +1077,7 @@ function irPara(id, btn) {
     calcularSalario();
   }
 }
-function renderAll() { renderResumo(); renderHistorico(); if (visaoTab) renderVisao(); renderProjecao(); if (typeof renderProvisioning === 'function') renderProvisioning(); }
+function renderAll() { renderResumo(); renderHistorico(); if (visaoTab) renderVisao(); if (typeof renderProvisioning === 'function') renderProvisioning(); }
 
 // ══════════════════════════════════════════════════
 // HELPERS
@@ -1396,6 +1396,7 @@ function renderFatura() {
 // PROJEÇÃO
 // ══════════════════════════════════════════════════
 function renderProjecao() {
+  if (!document.getElementById('proj-linhas')) return;
   const list=getLancs(curMes,curAno), ent=sum(list,'Entrada'), sai=sum(list,'Saída'), inv=sum(list,'Investimento');
   document.getElementById('proj-linhas').innerHTML=[
     {nome:'Entradas',meta:9500,real:ent,pos:true},
