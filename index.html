@@ -1012,6 +1012,7 @@ async function carregarDados(tentativa = 1) {
   if (TOKEN) await renovarTokenSeNecessario();
   try {
     const data = await apiGet();
+    console.log('carregarDados: data ok, lancamentos:', (data.lancamentos||[]).length);
     lancamentos = data.lancamentos || [];
     if (data.metas) { metas = {...metas, ...data.metas}; localStorage.setItem('cf_metas', JSON.stringify(metas)); }
     if (data.config && data.config.dia_fechamento) {
@@ -1020,10 +1021,14 @@ async function carregarDados(tentativa = 1) {
       const el = document.getElementById('cfg-dia-fechamento');
       if (el) el.value = USER.dia_fechamento;
     }
-    setSyncStatus('ok', 'Sincronizado · ' + horaAtual());
+    console.log('carregarDados: antes do carregarCaixinhas');
     carregarCaixinhas(data.config);
+    console.log('carregarDados: antes do renderAll');
     renderAll();
+    console.log('carregarDados: renderAll ok');
+    setSyncStatus('ok', 'Sincronizado · ' + horaAtual());
   } catch(e) {
+    console.error('carregarDados ERRO:', e.message, e.stack);
     if (e.message === 'Sessão expirada') return;
     // Retry automático até 3 vezes com delay crescente
     if (tentativa < 3) {
