@@ -837,14 +837,14 @@ ACT['fluxo-ano'] = function(el){ S.fluxoAno += +el.dataset.d; renderFluxo(); };
 ACT['fluxo-det'] = function(el){ var d = $('det-' + el.dataset.ym); if (d) d.classList.toggle('open'); };
 
 function fluxoTabela(){
-  var ano = S.fluxoAno, now = ymNow(), start = startYM(), rows = '', tEnt = 0, tSai = 0, tFat = 0, tInv = 0, ultimo = null;
+  var ano = S.fluxoAno, now = ymNow(), start = startYM(), rows = '', tEnt = 0, tSai = 0, tFat = 0, tInv = 0, ultimo = null, primeiro = true;
   for (var m = 1; m <= 12; m++) {
     var ym = ano + '-' + pad(m), c = mesCalc(ym), antes = ym < start, sm = saldoMes(ym);
-    if (!antes) { tEnt += c.ent; tSai += c.saidas; tFat += c.fatura; tInv += c.inv; if (sm) ultimo = sm; }
-    var vazioMes = c.ent === 0 && c.saidas === 0;
+    if (!antes) { if (primeiro && sm) { tEnt += sm.anterior; primeiro = false; } tEnt += c.ent; tSai += c.gastos; tFat += c.fatura; tInv += c.inv; if (sm) ultimo = sm; }
+    var vazioMes = c.ent === 0 && c.saidas === 0, entTot = c.ent + (!antes && sm ? sm.anterior : 0);
     var cls = 'fr' + (ym === now ? ' now' : '') + (antes ? ' dim' : '') + (ym > now ? ' fut' : '');
     rows += '<div class="' + cls + '" data-act="fluxo-det" data-ym="' + ym + '"><span class="mes">' + MESES_ABR[m - 1] + (ym === now ? ' ◂' : '') + '</span>' +
-      '<span class="g">' + (c.ent ? n0(c.ent) : '—') + '</span><span class="r">' + (c.saidas ? n0(c.saidas) : '—') + '</span>' +
+      '<span class="g">' + (entTot ? (entTot < 0 ? '−' : '') + n0(Math.abs(entTot)) : '—') + '</span><span class="r">' + (c.gastos ? n0(c.gastos) : '—') + '</span>' +
       '<span class="p">' + (c.fatura ? n0(c.fatura) : '—') + '</span><span class="b">' + (c.inv ? n0(c.inv) : '—') + '</span>' +
       '<span class="' + (sm && sm.saldo < 0 ? 'r' : 'g') + '">' + (sm && !(vazioMes && !sm.anterior) ? (sm.saldo < 0 ? '−' : '') + n0(Math.abs(sm.saldo)) : '—') + '</span></div>';
     var det = '';
@@ -863,7 +863,7 @@ function fluxoTabela(){
   var h = '<div class="month-bar"><div class="month-title">' + ano + '</div><div class="mnav"><button data-act="fluxo-ano" data-d="-1" aria-label="Ano anterior">‹</button><button data-act="fluxo-ano" data-d="1" aria-label="Próximo ano">›</button></div></div>' +
     '<div class="ftable"><div class="fh"><span>Mês</span><span>Entradas</span><span>Saídas</span><span>↳ Fatura</span><span>↳ Invest.</span><span>Saldo</span></div>' + rows +
     '<div class="fr ftotal"><span class="mes">Ano</span><span class="g">' + n0(tEnt) + '</span><span class="r">' + n0(tSai) + '</span><span class="p">' + n0(tFat) + '</span><span class="b">' + n0(tInv) + '</span><span class="' + (saldoFim < 0 ? 'r' : 'g') + '">' + (saldoFim < 0 ? '−' : '') + n0(Math.abs(saldoFim)) + '</span></div>' +
-    '<div class="sticky-note">Valores em R$. <b>Toque num mês</b> para ver a conta detalhada. <b>Saídas</b> = Pix/débito + fatura do cartão que vence no mês + investimentos + o que ainda está reservado nas caixinhas. O <b>saldo</b> sempre carrega o que sobrou do mês anterior.' +
+    '<div class="sticky-note">Valores em R$. <b>Toque num mês</b> para ver a conta detalhada. <b>Entradas</b> = o que entrou no mês + o saldo que sobrou do mês anterior. <b>Saídas</b> = Pix/débito + fatura do cartão (igual ao Início). <b>Saldo</b> = Entradas − Saídas − Investimentos − o que ainda está reservado nas caixinhas.' +
     (S.cfg.inicio ? '<br>O controle começa em <b>' + ymAbr(start) + '</b>' + (baseSaldo() ? ' com saldo inicial de <b>' + brl(baseSaldo()) + '</b>.' : '.') : '') + '</div></div>';
   $('fluxo-corpo').innerHTML = h;
 }
