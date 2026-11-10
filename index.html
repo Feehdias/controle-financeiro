@@ -457,8 +457,8 @@ function serie(ate){
   if (_memo['s' + ate]) return _memo['s' + ate];
   var s = startYM(), out = [], saldo = baseSaldo();
   for (var m = s; m <= ate; m = ymAdd(m, 1)) {
-    var c = mesCalc(m); var ant = saldo; saldo += c.ent - c.saidas;
-    out.push(Object.assign({}, c, {anterior: ant, saldo: saldo}));
+    var c = mesCalc(m); var ant = saldo; saldo += c.ent - c.gastos - c.inv;
+    out.push(Object.assign({}, c, {anterior: ant, saldo: saldo, livre: saldo - c.reserva}));
     if (out.length > 240) break;
   }
   _memo['s' + ate] = out; return out;
@@ -700,7 +700,7 @@ function renderInicio(){
     '<div class="kpi"><div class="kpi-l">Gastos</div><div class="kpi-v r">' + brl(c.gastos) + '</div><div class="kpi-s">Pix/débito ' + brl0(c.pix) + ' + fatura ' + brl0(c.fatura) + '</div></div>' +
     '<div class="kpi"><div class="kpi-l">Investido</div><div class="kpi-v b">' + brl(c.inv) + '</div><div class="kpi-s">' + (c.ent > 0 ? Math.round(c.inv / c.ent * 100) + '% da renda' : 'aportes do mês') + '</div></div>' +
     '<div class="kpi"><div class="kpi-l">Saldo acumulado</div><div class="kpi-v ' + (sm && sm.saldo < 0 ? 'r' : 'g') + '">' + (sm ? brlS(sm.saldo) : '—') + '</div><div class="kpi-s">' +
-      (sm ? (sm.ym > startYM() || baseSaldo() ? 'inclui ' + brlS(sm.anterior) + ' que veio de ' + mesNome(prev) : 'primeiro mês do controle') + (c.reserva > 0 ? '<br>já reserva ' + brl0(c.reserva) + ' das caixinhas' : '') : 'antes do início') + '</div></div>' +
+      (sm ? (sm.ym > startYM() || baseSaldo() ? 'inclui ' + brlS(sm.anterior) + ' que veio de ' + mesNome(prev) : 'primeiro mês do controle') + (c.reserva > 0 ? '<br>' + brl0(c.reserva) + ' ainda reservados nas caixinhas → livre ' + brlS(sm.livre) : '') : 'antes do início') + '</div></div>' +
     '</div>';
   if (c.nFatura > 0 || ym >= ymNow()) {
     var porCartao = {}; (idx().byFat[ym] || []).forEach(function(l){ var n = l.cartao || 'Cartão'; porCartao[n] = (porCartao[n] || 0) + l.valor; });
@@ -854,8 +854,8 @@ function fluxoTabela(){
         '<div class="row"><span class="m">− Pix/Débito</span><b class="r">' + brl(c.pix) + '</b></div>' +
         '<div class="row"><span class="m">− Fatura do cartão</span><b class="p">' + brl(c.fatura) + '</b></div>' +
         '<div class="row"><span class="m">− Investimentos</span><b class="b">' + brl(c.inv) + '</b></div>' +
-        (c.reserva > 0 ? '<div class="row"><span class="m">− Ainda reservado nas caixinhas</span><b class="w">' + brl(c.reserva) + '</b></div>' : '') +
-        '<div class="row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:6px"><span><b>= Saldo no fim do mês</b></span><b class="' + (sm && sm.saldo < 0 ? 'r' : 'g') + '">' + brlS(sm ? sm.saldo : 0) + '</b></div>';
+        '<div class="row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:6px"><span><b>= Saldo no fim do mês</b></span><b class="' + (sm && sm.saldo < 0 ? 'r' : 'g') + '">' + brlS(sm ? sm.saldo : 0) + '</b></div>' +
+        (c.reserva > 0 ? '<div class="row"><span class="m">Ainda reservado nas caixinhas</span><b class="w">' + brl(c.reserva) + '</b></div><div class="row"><span class="m">Livre depois das caixinhas</span><b class="' + (sm && sm.livre < 0 ? 'r' : 'g') + '">' + brlS(sm ? sm.livre : 0) + '</b></div>' : '');
     } else det = '<span class="m">Este mês é anterior ao início do controle (' + ymAbr(start) + ').</span>';
     rows += '<div class="fdet" id="det-' + ym + '">' + det + '</div>';
   }
@@ -863,7 +863,7 @@ function fluxoTabela(){
   var h = '<div class="month-bar"><div class="month-title">' + ano + '</div><div class="mnav"><button data-act="fluxo-ano" data-d="-1" aria-label="Ano anterior">‹</button><button data-act="fluxo-ano" data-d="1" aria-label="Próximo ano">›</button></div></div>' +
     '<div class="ftable"><div class="fh"><span>Mês</span><span>Entradas</span><span>Saídas</span><span>↳ Fatura</span><span>↳ Invest.</span><span>Saldo</span></div>' + rows +
     '<div class="fr ftotal"><span class="mes">Ano</span><span class="g">' + n0(tEnt) + '</span><span class="r">' + n0(tSai) + '</span><span class="p">' + n0(tFat) + '</span><span class="b">' + n0(tInv) + '</span><span class="' + (saldoFim < 0 ? 'r' : 'g') + '">' + (saldoFim < 0 ? '−' : '') + n0(Math.abs(saldoFim)) + '</span></div>' +
-    '<div class="sticky-note">Valores em R$. <b>Toque num mês</b> para ver a conta detalhada. <b>Entradas</b> = o que entrou no mês + o saldo que sobrou do mês anterior. <b>Saídas</b> = Pix/débito + fatura do cartão (igual ao Início). <b>Saldo</b> = Entradas − Saídas − Investimentos − o que ainda está reservado nas caixinhas.' +
+    '<div class="sticky-note">Valores em R$. <b>Toque num mês</b> para ver a conta detalhada. <b>Entradas</b> = o que entrou no mês + o saldo que sobrou do mês anterior. <b>Saídas</b> = Pix/débito + fatura do cartão (igual ao Início). <b>Saldo</b> = Entradas − Saídas − Investimentos. O que ainda está reservado nas caixinhas aparece ao tocar no mês.' +
     (S.cfg.inicio ? '<br>O controle começa em <b>' + ymAbr(start) + '</b>' + (baseSaldo() ? ' com saldo inicial de <b>' + brl(baseSaldo()) + '</b>.' : '.') : '') + '</div></div>';
   $('fluxo-corpo').innerHTML = h;
 }
