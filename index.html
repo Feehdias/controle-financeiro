@@ -429,7 +429,10 @@ function caixinhasDoMes(ym){
   });
 }
 function gastoCat(cat, ym){
-  return sum((idx().byYm[ym] || []).filter(function(l){ return l.tipo === 'Saída' && l.categoria === cat; }), function(l){ return l.valor; });
+  /* débito/pix conta no mês da compra; cartão conta no mês em que a fatura é paga */
+  var a = (idx().byYm[ym] || []).filter(function(l){ return l.tipo === 'Saída' && l.pagamento !== 'Cartão' && l.categoria === cat; });
+  var b = (idx().byFat[ym] || []).filter(function(l){ return l.categoria === cat; });
+  return sum(a, function(l){ return l.valor; }) + sum(b, function(l){ return l.valor; });
 }
 function caixinhaStatus(ym){
   return caixinhasDoMes(ym).filter(function(c){ return c.valor > 0; }).map(function(c){
