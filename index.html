@@ -113,6 +113,7 @@ a{color:var(--accent2)}
 
 /* lista de lançamentos */
 .tx{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--border);border-radius:13px;padding:11px 12px;margin-bottom:7px}
+.tx.prev{border-style:dashed;opacity:.92}
 .tx .ic{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
 .tx .mid{flex:1;min-width:0}
 .tx .t{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -403,7 +404,8 @@ function normL(r){
   if (cartao) fy = r.fatura_ym ? String(r.fatura_ym).substring(0, 7) : faturaYMde(data, r.cartao ? diaDoCartao(r.cartao) : diaFechPadrao());
   return {id: String(r.id), tipo: r.tipo, categoria: r.categoria || '', sub: r.sub || '', desc: r.desc || '', valor: Number(r.valor) || 0,
     data: data, ym: data.substring(0, 7), obs: r.obs || '', pagamento: r.pagamento || '', parcAtual: r.parcAtual, parcTotal: r.parcTotal,
-    autor: r.autor || '', meta_id: r.meta_id ? String(r.meta_id) : '', cartao: r.cartao || '', fatura_ym: fy};
+    autor: r.autor || '', meta_id: r.meta_id ? String(r.meta_id) : '', cartao: r.cartao || '', fatura_ym: fy,
+    pv: String(r.provisionado == null || r.provisionado === '' ? '0' : r.provisionado), previsto: String(r.provisionado) === '1'};
 }
 var _idx = null, _memo = {};
 function dirty(){ _idx = null; _memo = {}; }
@@ -509,6 +511,28 @@ function patrimonio(){
   return {total: total, porCat: porCat, aporteMedio: mean(ap), inv: inv};
 }
 
+/* previstos: lançamentos futuros (orçamento) que ainda não foram confirmados */
+function pvPara(dt, atual, confirmar){
+  if (confirmar) return '2';
+  if (atual && atual.pv === '2') return '2';
+  return dt > hojeISO() ? '1' : (atual && atual.pv === '1' ? '1' : '0');
+}
+function payloadL(l, extra){
+  return Object.assign({id: l.id, tipo: l.tipo, categoria: l.categoria, sub: l.sub, desc: l.desc, obs: l.obs, pagamento: l.pagamento,
+    meta_id: l.meta_id, cartao: l.cartao, dia_fech: l.cartao ? diaDoCartao(l.cartao) : undefined, valor: l.valor, data: l.data,
+    parcAtual: l.parcAtual, parcTotal: l.parcTotal}, extra || {});
+}
+function aConfirmar(){ var lim = ymAdd(ymNow(), 0); return S.lancs.filter(function(l){ return l.previsto && l.ym <= lim; }).sort(function(a, b){ return a.data < b.data ? -1 : 1; }); }
+async function marcarPrevistos(){
+  if (S.pvFeito) return; S.pvFeito = true;
+  var tem = S.lancs.some(function(l){ return l.pv === '0' && l.data > hojeISO(); });
+  if (!tem) return;
+  var r = await api('marcar_previstos', {hoje: hojeISO()}); if (!r.ok) return;
+  var set = {}; (r.marcados || []).forEach(function(i){ set[i] = 1; });
+  S.lancs.forEach(function(l){ if (set[l.id]) { l.pv = '1'; l.previsto = true; } });
+  dirty(); render();
+}
+
 /* ═══════════════ SESSÃO / ENTRADA ═══════════════ */
 var ACT = {};
 function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -609,7 +633,7 @@ async function loadAll(){
   for (var t = 0; t < 3; t++) { r = await api('dados', {}); if (r.ok || !r.network) break; await sleep(1500 * (t + 1)); }
   if (!r || !r.ok) { setSync('err'); if (r && r.error && !S.loaded && !r.network) toast(r.error, true); render(); return false; }
   S.user = r.user; S.cfg = r.config || {}; S.objs = r.objetivos || [];
-  S.lancs = (r.lancamentos || []).map(normL); S.loaded = true; S.syncAt = Date.now(); dirty(); setSync('ok'); saveSession(); render(); return true;
+  S.lancs = (r.lancamentos || []).map(normL); S.loaded = true; S.syncAt = Date.now(); dirty(); setSync('ok'); saveSession(); render(); marcarPrevistos(); return true;
 }
 function setSync(v){ S.sync = v; var b = document.querySelector('.sync'); if (b) updSync(b); }
 function updSync(b){
@@ -712,6 +736,15 @@ function renderInicio(){
     var det = Object.keys(porCartao).length > 1 ? Object.keys(porCartao).map(function(n){ return esc(n) + ' ' + brl0(porCartao[n]); }).join(' · ') : (c.nFatura + ' compra' + (c.nFatura === 1 ? '' : 's'));
     h += '<div class="card fatura"><div class="row"><div><div class="kpi-l p">💳 Fatura do cartão em ' + mesNome(ym) + '</div><div class="kpi-v p">' + brl(c.fatura) + '</div><div class="kpi-s">' + det + '</div></div><button class="btn sec2 sm" data-act="ir-fatura" data-ym="' + ym + '">Ver itens</button></div></div>';
   }
+  var pend = aConfirmar();
+  if (pend.length) {
+    h += '<div class="sec">🕒 Para confirmar <span class="help">' + pend.length + ' previsto' + (pend.length === 1 ? '' : 's') + '</span></div>';
+    pend.slice(0, 5).forEach(function(l){
+      h += '<div class="tx prev"><div class="ic" style="background:' + (COR[l.categoria] || '#94a3b8') + '22">' + (EMOJI[l.categoria] || '📌') + '</div><div class="mid"><div class="t">' + esc(l.desc || l.categoria) + '</div><div class="s"><span>' + fmtBR(l.data).slice(0, 5) + ' · ' + esc(l.categoria) + '</span></div></div>' +
+        '<div class="vv"><div class="v ' + (l.tipo === 'Entrada' ? 'g' : l.tipo === 'Investimento' ? 'b' : 'r') + '">' + brl(l.valor) + '</div><div class="acts"><button data-act="confirmar" data-id="' + esc(l.id) + '" title="Confirmar" aria-label="Confirmar">✅</button><button data-act="editar" data-id="' + esc(l.id) + '" title="Ajustar valor" aria-label="Ajustar">✏️</button></div></div></div>';
+    });
+    if (pend.length > 5) h += '<div class="help" style="text-align:center">+ ' + (pend.length - 5) + ' em Lançamentos</div>';
+  }
   if (ins.length) { h += '<div class="sec">💡 Para vocês</div>'; ins.forEach(function(i){ h += '<div class="insight ' + i.tom + '"><span class="ic">' + i.ic + '</span><span>' + i.t + '</span></div>'; }); }
   if (cs.length) {
     h += '<div class="sec">Caixinhas do mês <button data-act="ir-plan" data-v="caixinhas">Ver todas</button></div>';
@@ -779,14 +812,14 @@ function renderLista(){
   var h = '';
   list.forEach(function(l){
     var cor = COR[l.categoria] || '#94a3b8', ent = l.tipo === 'Entrada', inv = l.tipo === 'Investimento', cartao = l.tipo === 'Saída' && l.pagamento === 'Cartão';
-    var pills = '';
+    var pills = l.previsto ? '<span class="pill au">🕒 previsto</span>' : '';
     if (l.tipo === 'Saída') pills += cartao ? '<span class="pill cc">💳 ' + esc(l.cartao && l.cartao !== 'Cartão' ? l.cartao : 'Cartão') + ' · fatura ' + ymAbr(l.fatura_ym) + '</span>' : '<span class="pill px">⚡ Pix/Débito</span>';
     if (Number(l.parcTotal) > 1) pills += '<span class="pill pa">' + esc(l.parcAtual) + '/' + esc(l.parcTotal) + 'x</span>';
     if (inv && l.meta_id) { var mm = S.objs.filter(function(o){ return o.id === l.meta_id; })[0]; if (mm) pills += '<span class="pill au">' + esc(mm.emoji || '🎯') + ' ' + esc(mm.nome) + '</span>'; }
     if (l.autor && (multi || l.autor !== primeiroNome(S.user && S.user.nome))) pills += '<span class="pill au">👤 ' + esc(l.autor) + '</span>';
     var lead = S.selMode ? '<input type="checkbox" data-act="sel-um" data-id="' + esc(l.id) + '" ' + (S.sel[l.id] ? 'checked' : '') + '>' : '';
-    var acts = S.selMode ? '' : '<div class="acts">' + (l.tipo === 'Saída' && l.categoria !== 'Estorno' ? '<button data-act="estorno" data-id="' + esc(l.id) + '" title="Estornar" aria-label="Estornar">↩️</button>' : '') + '<button data-act="editar" data-id="' + esc(l.id) + '" title="Editar" aria-label="Editar">✏️</button><button data-act="excluir" data-id="' + esc(l.id) + '" title="Excluir" aria-label="Excluir">🗑️</button></div>';
-    h += '<div class="tx">' + lead + '<div class="ic" style="background:' + cor + '22">' + (EMOJI[l.categoria] || '📌') + '</div><div class="mid"><div class="t">' + esc(l.desc || l.categoria) + '</div><div class="s"><span>' + esc(l.categoria) + ' · ' + fmtBR(l.data).slice(0, 5) + '</span>' + pills + '</div>' + (l.obs ? '<div class="s" style="margin-top:3px"><span>“' + esc(l.obs) + '”</span></div>' : '') + '</div>' +
+    var acts = S.selMode ? '' : '<div class="acts">' + (l.tipo === 'Saída' && l.categoria !== 'Estorno' ? '<button data-act="estorno" data-id="' + esc(l.id) + '" title="Estornar" aria-label="Estornar">↩️</button>' : '') + (l.previsto ? '<button data-act="confirmar" data-id="' + esc(l.id) + '" title="Confirmar que aconteceu" aria-label="Confirmar">✅</button>' : '') + '<button data-act="editar" data-id="' + esc(l.id) + '" title="Editar" aria-label="Editar">✏️</button><button data-act="excluir" data-id="' + esc(l.id) + '" title="Excluir" aria-label="Excluir">🗑️</button></div>';
+    h += '<div class="tx' + (l.previsto ? ' prev' : '') + '">' + lead + '<div class="ic" style="background:' + cor + '22">' + (EMOJI[l.categoria] || '📌') + '</div><div class="mid"><div class="t">' + esc(l.desc || l.categoria) + '</div><div class="s"><span>' + esc(l.categoria) + ' · ' + fmtBR(l.data).slice(0, 5) + '</span>' + pills + '</div>' + (l.obs ? '<div class="s" style="margin-top:3px"><span>“' + esc(l.obs) + '”</span></div>' : '') + '</div>' +
       '<div class="vv"><div class="v ' + (ent ? 'g' : inv ? 'b' : 'r') + '">' + (ent ? '+ ' : inv ? '▲ ' : '− ') + brl(l.valor) + '</div>' + acts + '</div></div>';
   });
   if (!list.length) h = vazio('🕐', 'Nada por aqui', S.busca || S.filtro !== 'todos' ? 'Nenhum lançamento com esse filtro.' : 'Nenhum lançamento em ' + ymLabel(S.ym) + '.', '<button class="btn sm" data-act="novo" style="width:auto">+ Novo lançamento</button>');
@@ -1008,6 +1041,7 @@ function openLanc(id, preset){
     '<div class="box hidden" id="f-cx-hint"></div>' +
     '<div class="field"><label for="f-obs">Observação (opcional)</label><input id="f-obs" type="text" maxlength="200" placeholder="Ex.: presente de aniversário" value="' + esc(edit ? edit.obs : '') + '"></div>' +
     (edit ? '' : '<div id="f-rec-box"><label class="check"><input type="checkbox" id="f-rec"> 🔁 Repete todo mês</label><div class="field hidden" id="f-rec-n-box"><label for="f-rec-n">Por quantos meses?</label><input id="f-rec-n" type="number" min="2" max="36" value="12" inputmode="numeric"></div></div>') +
+    (edit && edit.previsto ? '<label class="check" style="margin:6px 0"><input type="checkbox" id="f-conf" checked> ✅ Isto já aconteceu — confirmar (ajuste o valor acima se mudou)</label>' : '') +
     '<div class="err" id="f-err"></div>' +
     '<button class="btn" id="f-salvar">' + (edit ? 'Salvar alterações' : 'Salvar') + '</button>' +
     (edit ? '<button class="btn danger" id="f-excluir" style="margin-top:8px">🗑️ Excluir</button>' : '');
@@ -1073,13 +1107,13 @@ function openLanc(id, preset){
       comBotao(q('f-salvar'), 'Salvando…', async function(){
         var r;
         if (edit) {
-          r = await api('update', Object.assign({id: edit.id, valor: valor, data: dt, parcAtual: edit.parcAtual, parcTotal: edit.parcTotal}, base));
+          r = await api('update', Object.assign({id: edit.id, valor: valor, data: dt, parcAtual: edit.parcAtual, parcTotal: edit.parcTotal, provisionado: pvPara(dt, edit, !!(q('f-conf') && q('f-conf').checked))}, base));
           if (r.ok) { var i = S.lancs.findIndex(function(x){ return x.id === edit.id; }); if (i >= 0) S.lancs[i] = normL(Object.assign({}, r.atualizado, {id: edit.id})); }
         } else {
           var itens = [], dia = +dt.slice(8), ym0 = dt.slice(0, 7), cont = Math.max(n, rec);
           for (var k = 0; k < cont; k++) {
             var v = valor; if (n > 1) { var parc = r2(valor / n); v = k < n - 1 ? parc : r2(valor - parc * (n - 1)); }
-            itens.push(Object.assign({}, base, {valor: v, data: dataNoMes(ymAdd(ym0, k), dia), parcAtual: n > 1 ? k + 1 : '', parcTotal: n > 1 ? n : ''}));
+            var dk = dataNoMes(ymAdd(ym0, k), dia); itens.push(Object.assign({}, base, {valor: v, data: dk, provisionado: pvPara(dk, null, false), parcAtual: n > 1 ? k + 1 : '', parcTotal: n > 1 ? n : ''}));
           }
           r = itens.length > 1 ? await api('add_lote', {itens: itens}) : await api('add', itens[0]);
           if (r.ok) r.criados.forEach(function(o){ S.lancs.push(normL(o)); });
@@ -1088,7 +1122,7 @@ function openLanc(id, preset){
         try { if (st.tipo === 'Saída') localStorage.setItem('cf2_pag', st.pag); if (cartao) localStorage.setItem('cf2_cartao', ck.nome); } catch (e) {}
         dirty(); closeModal();
         var ymNovo = dt.slice(0, 7); if (ymNovo !== S.ym && (S.tab === 'inicio' || S.tab === 'lanc')) S.ym = ymNovo;
-        toast(edit ? 'Alterações salvas' : (itens && itens.length > 1 ? itens.length + ' lançamentos criados' : 'Lançamento salvo')); render();
+        toast(edit ? (edit.previsto && q('f-conf') && q('f-conf').checked ? 'Confirmado ✅' : 'Alterações salvas') : (itens && itens.length > 1 ? itens.length + ' lançamentos criados' : 'Lançamento salvo')); render();
       });
     });
   });
@@ -1242,6 +1276,15 @@ ACT['cx-det'] = function(el){
       '<div class="help">' + fmtBR(l.data).slice(0, 5) + (cartao ? ' · 💳 ' + esc(l.cartao && l.cartao !== 'Cartão' ? l.cartao : 'Cartão') + ' · fatura de ' + ymAbr(l.fatura_ym) : ' · Pix/Débito') + (Number(l.parcTotal) > 1 ? ' · parcela ' + esc(l.parcAtual) + '/' + esc(l.parcTotal) : '') + (l.autor ? ' · ' + esc(l.autor) : '') + '</div></div><b style="font-size:13.5px">' + brl(l.valor) + '</b></div>';
   }).join('') + '<div class="row" style="padding:12px 0"><b>Total</b><b class="r">' + brl(tot) + '</b></div>';
   openModal(h);
+};
+
+ACT.confirmar = async function(el){
+  var l = S.lancs.filter(function(x){ return x.id === el.dataset.id; })[0]; if (!l) return;
+  el.disabled = true;
+  var r = await api('update', payloadL(l, {provisionado: '2'}));
+  if (!r.ok) { el.disabled = false; return toast(r.error || 'Não foi possível confirmar.', true); }
+  var i = S.lancs.indexOf(l); S.lancs[i] = normL(Object.assign({}, r.atualizado, {id: l.id}));
+  dirty(); toast('Confirmado ✅'); render();
 };
 
 /* ═══════════════ AJUSTES ═══════════════ */
