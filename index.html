@@ -428,15 +428,17 @@ function caixinhasDoMes(ym){
     return {cat: c.cat, emoji: c.emoji || EMOJI[c.cat] || '💰', valor: v, padrao: padrao, custom: !!(ov && ov[c.cat] !== undefined)};
   });
 }
-function gastoCat(cat, ym){
-  /* débito/pix conta no mês da compra; cartão conta no mês em que a fatura é paga */
+/* lançamentos que compõem o gasto de uma categoria no mês:
+   Pix/débito conta no mês da compra; cartão conta no mês em que a fatura é paga */
+function gastoItens(cat, ym){
   var a = (idx().byYm[ym] || []).filter(function(l){ return l.tipo === 'Saída' && l.pagamento !== 'Cartão' && l.categoria === cat; });
-  var b = (idx().byFat[ym] || []).filter(function(l){ return l.categoria === cat; });
-  return sum(a, function(l){ return l.valor; }) + sum(b, function(l){ return l.valor; });
+  var b = (idx().byFat[ym] || []).filter(function(l){ return l.tipo === 'Saída' && l.categoria === cat; });
+  return a.concat(b);
 }
+function gastoCat(cat, ym){ return sum(gastoItens(cat, ym), function(l){ return l.valor; }); }
 function caixinhaStatus(ym){
   return caixinhasDoMes(ym).filter(function(c){ return c.valor > 0; }).map(function(c){
-    var g = gastoCat(c.cat, ym); return Object.assign({}, c, {gasto: g, resta: c.valor - g, pct: c.valor > 0 ? g / c.valor : 0});
+    var g = gastoCat(c.cat, ym); return Object.assign({}, c, {ym: ym, gasto: g, resta: c.valor - g, pct: c.valor > 0 ? g / c.valor : 0});
   });
 }
 function mesCalc(ym){
@@ -657,7 +659,7 @@ function insights(ym){
   var subiu = [];
   Object.keys(cats).forEach(function(cat){
     var hist = []; for (var i = 1; i <= 3; i++) { var m = ymAdd(ym, -i), has = (idx().byYm[m] || []).some(function(l){ return l.tipo === 'Saída'; }); if (has) hist.push(gastoCat(cat, m)); }
-    if (hist.length >= 2) { var avg = mean(hist), g = cats[cat]; if (g > avg * 1.25 && g - avg >= 50) subiu.push({cat: cat, g: g, avg: avg}); }
+    if (hist.length >= 2) { var avg = mean(hist), g = gastoCat(cat, ym); if (avg > 0 && g > avg * 1.25 && g - avg >= 50) subiu.push({cat: cat, g: g, avg: avg}); }
   });
   subiu.sort(function(a, b){ return (b.g - b.avg) - (a.g - a.avg); }).slice(0, 2).forEach(function(x){
     out.push({tom: 'warn', ic: EMOJI[x.cat] || '📈', t: 'Em <b>' + esc(x.cat) + '</b> ' + (ym < now ? 'vocês gastaram ' : 'já foram ') + brl0(x.g) + ': ' + Math.round((x.g / x.avg - 1) * 100) + '% acima da média dos últimos meses (' + brl0(x.avg) + ').'});
@@ -725,11 +727,11 @@ ACT['ir-fatura'] = function(el){ S.fluxoTab = 'fatura'; S.openFat[el.dataset.ym]
 ACT['ir-plan'] = function(el){ S.planTab = el.dataset.v; setTab('plan'); };
 function caixinhaCard(x, mini){
   var pct = Math.min(1, x.pct), cor = x.pct >= 1 ? 'var(--danger)' : x.pct >= 0.8 ? 'var(--warn)' : 'var(--accent)';
-  var h = '<div class="card"><div class="row"><div style="font-weight:700">' + esc(x.emoji) + ' ' + esc(x.cat) + (x.custom ? ' <span class="pill au">valor deste mês</span>' : '') + '</div><div style="font-size:12px;font-weight:700;color:' + cor + '">' + (x.pct >= 1 ? 'Estourou' : Math.round(x.pct * 100) + '% usado') + '</div></div>' +
+  var h = '<div class="card cx-click" data-act="cx-det" data-cat="' + esc(x.cat) + '" data-ym="' + esc(x.ym || S.ym) + '" role="button" tabindex="0" style="cursor:pointer"><div class="row"><div style="font-weight:700">' + esc(x.emoji) + ' ' + esc(x.cat) + (x.custom ? ' <span class="pill au">valor deste mês</span>' : '') + '</div><div style="font-size:12px;font-weight:700;color:' + cor + '">' + (x.pct >= 1 ? 'Estourou' : Math.round(x.pct * 100) + '% usado') + '</div></div>' +
     '<div class="bar" style="margin:9px 0 6px"><i style="width:' + Math.round(pct * 100) + '%;background:' + cor + '"></i></div>';
   h += mini ? '<div class="help">Restam <b style="color:' + cor + '">' + brl0(Math.max(0, x.resta)) + '</b> de ' + brl0(x.valor) + '</div>' :
     '<div class="cx-nums"><div><small>Combinado</small><b>' + brl0(x.valor) + '</b></div><div><small>Gasto</small><b class="r">' + brl0(x.gasto) + '</b></div><div><small>' + (x.resta < 0 ? 'Passou' : 'Resta') + '</small><b style="color:' + cor + '">' + brl0(Math.abs(x.resta)) + '</b></div></div>';
-  return h + '</div>';
+  return h + '<div class="help" style="margin-top:8px;color:var(--accent)">Toque para ver os lançamentos ›</div></div>';
 }
 function metaCard(m, mini){
   var atual = metaAtual(m), pct = m.alvo > 0 ? Math.min(1, atual / m.alvo) : 0, falta = Math.max(0, m.alvo - atual), now = ymNow();
@@ -1042,8 +1044,8 @@ function openLanc(id, preset){
       if (cartao && /^\d{4}-\d{2}-\d{2}$/.test(dt)) { var fy = faturaYMde(dt, ck.dia); q('f-fat-hint').innerHTML = '💳 Compra no dia ' + +dt.slice(8) + ' (fecha dia ' + ck.dia + ') → entra na <b>fatura de ' + ymLabel(fy) + '</b>.'; }
       // caixinha
       var cxBox = q('f-cx-hint'), cx = null;
-      if (saida && /^\d{4}-\d{2}/.test(dt)) { var ymc = dt.slice(0, 7); cx = caixinhaStatus(ymc).filter(function(c){ return c.cat === selCat.value; })[0]; }
-      if (cx) { var apos = cx.resta - (v > 0 && !(edit && edit.categoria === cx.cat && edit.ym === dt.slice(0, 7)) ? v : 0); cxBox.classList.remove('hidden'); cxBox.innerHTML = '💰 Caixinha de <b>' + esc(cx.cat) + '</b>: restam <b>' + brl0(cx.resta) + '</b>' + (v > 0 ? ' → depois deste gasto: <b class="' + (apos < 0 ? 'r' : 'g') + '">' + (apos < 0 ? 'estoura ' + brl0(-apos) : 'sobram ' + brl0(apos)) + '</b>' : '') + '. O desconto é automático.'; }
+      if (saida && /^\d{4}-\d{2}/.test(dt)) { var ymc = cartao && /^\d{4}-\d{2}-\d{2}$/.test(dt) ? faturaYMde(dt, ck.dia) : dt.slice(0, 7); cx = caixinhaStatus(ymc).filter(function(c){ return c.cat === selCat.value; })[0]; }
+      if (cx) { var apos = cx.resta - (v > 0 && !(edit && edit.categoria === cx.cat && (edit.fatura_ym || edit.ym) === ymc) ? v : 0); cxBox.classList.remove('hidden'); cxBox.innerHTML = '💰 Caixinha de <b>' + esc(cx.cat) + '</b>: restam <b>' + brl0(cx.resta) + '</b>' + (cartao ? ' (fatura de ' + ymLabel(ymc) + ')' : '') + (v > 0 ? ' → depois deste gasto: <b class="' + (apos < 0 ? 'r' : 'g') + '">' + (apos < 0 ? 'estoura ' + brl0(-apos) : 'sobram ' + brl0(apos)) + '</b>' : '') + '. O desconto é automático.'; }
       else cxBox.classList.add('hidden');
       var rec = q('f-rec'), prb = q('f-parc-box');
       if (rec) { var pn = cartao && n > 1; q('f-rec-box').classList.toggle('hidden', pn); q('f-rec-n-box').classList.toggle('hidden', !rec.checked); }
@@ -1224,6 +1226,23 @@ function openTutorial(){
     pinta();
   });
 }
+
+/* detalhe de uma caixinha: lançamentos que compõem o gasto */
+ACT['cx-det'] = function(el){
+  var cat = el.dataset.cat, ym = el.dataset.ym;
+  var it = gastoItens(cat, ym).slice().sort(function(a, b){ return a.data < b.data ? 1 : -1; });
+  var cx = caixinhaStatus(ym).filter(function(c){ return c.cat === cat; })[0], tot = sum(it, function(l){ return l.valor; });
+  var h = mHead((EMOJI[cat] || '💰') + ' ' + esc(cat) + ' · ' + ymLabel(ym)) +
+    (cx ? '<div class="cx-nums" style="margin-bottom:10px"><div><small>Combinado</small><b>' + brl(cx.valor) + '</b></div><div><small>Gasto</small><b class="r">' + brl(tot) + '</b></div><div><small>' + (cx.resta < 0 ? 'Passou' : 'Resta') + '</small><b class="' + (cx.resta < 0 ? 'r' : 'g') + '">' + brl(Math.abs(cx.resta)) + '</b></div></div>' : '') +
+    '<div class="help" style="margin-bottom:8px">Pix/débito conta no mês da compra. Compras no cartão contam no mês em que a <b>fatura é paga</b>. Toque num item para editar.</div>';
+  if (!it.length) h += vazio('🧾', 'Nenhum gasto ainda', 'Quando lançar um gasto desta categoria, ele aparece aqui.');
+  else h += it.map(function(l){
+    var cartao = l.pagamento === 'Cartão';
+    return '<div class="row" style="padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" data-act="editar" data-id="' + esc(l.id) + '"><div style="min-width:0"><div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(l.desc || l.sub || l.categoria) + '</div>' +
+      '<div class="help">' + fmtBR(l.data).slice(0, 5) + (cartao ? ' · 💳 ' + esc(l.cartao && l.cartao !== 'Cartão' ? l.cartao : 'Cartão') + ' · fatura de ' + ymAbr(l.fatura_ym) : ' · Pix/Débito') + (Number(l.parcTotal) > 1 ? ' · parcela ' + esc(l.parcAtual) + '/' + esc(l.parcTotal) : '') + (l.autor ? ' · ' + esc(l.autor) : '') + '</div></div><b style="font-size:13.5px">' + brl(l.valor) + '</b></div>';
+  }).join('') + '<div class="row" style="padding:12px 0"><b>Total</b><b class="r">' + brl(tot) + '</b></div>';
+  openModal(h);
+};
 
 /* ═══════════════ AJUSTES ═══════════════ */
 function renderAjustes(){
