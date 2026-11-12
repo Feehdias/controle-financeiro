@@ -1323,10 +1323,11 @@ function renderAjustes(){
 
   h += '<div class="sec">Investimentos</div><div class="card"><div class="two"><div class="field"><label for="a-rent">Rentabilidade (% ao ano)</label><input id="a-rent" type="text" inputmode="decimal" value="' + esc(String(cfgNum('rentab_anual', 10)).replace('.', ',')) + '"></div><div class="field"><label for="a-aporte">Aporte mensal previsto</label><input id="a-aporte" type="text" inputmode="decimal" placeholder="média dos últimos meses" value="' + (S.cfg.aporte_mensal !== undefined && S.cfg.aporte_mensal !== '' ? String(cfgNum('aporte_mensal', 0)).replace('.', ',') : '') + '"></div></div><div class="help" style="margin-bottom:10px">Usados só na simulação de 12 meses do painel de Patrimônio.</div><button class="btn sm" data-act="inv-salvar" style="width:auto">Salvar</button></div>';
 
+  if (u.super) h += '<div class="sec">Administração do sistema</div><div class="card" id="adm-box"><div class="help">Carregando…</div></div>';
   h += '<div class="sec">Calculadora de salário (só sua)</div><div class="card" id="sal-box"></div>';
   h += '<div class="sec">Ajuda</div><div class="card"><button class="btn sec2" data-act="tutorial">Ver o tutorial de novo</button><p class="help" style="margin-top:10px">Seus dados ficam em uma planilha do Google ligada à sua casa. Cada pessoa entra com login e senha próprios; o acesso é liberado por convite.</p></div>';
   el.innerHTML = h; var b = el.querySelector('.sync'); if (b) updSync(b);
-  ligarCartoes(); renderCasa(); renderSal();
+  ligarCartoes(); renderCasa(); renderSal(); if (u.super) carregarAdm();
   if (!S.membros || Date.now() - (S.membrosAt || 0) > 10000) api('membros', {}).then(function(r){ if (r.ok) { S.membros = r.membros; S.convites = r.convites; S.maxMembros = r.max; S.membrosAt = Date.now(); if (S.tab === 'ajustes') renderCasa(); } });
 }
 ACT.sair = function(){ if (confirm('Sair da sua conta neste aparelho?')) sair(false); };
@@ -1471,6 +1472,29 @@ window.addEventListener('DOMContentLoaded', function(){
     (velho ? api('refresh', {}).then(function(r){ if (r.ok) { S.token = r.token; S.tokenAt = Date.now(); saveSession(); } }) : Promise.resolve()).then(function(){ if (S.token) loadAll(); });
   } else show('auth');
 });
+
+function carregarAdm(){
+  api('admin_lista', {}).then(function(r){
+    var box = $('adm-box'); if (!box || !r.ok) return;
+    var h = '<div class="help" style="margin-bottom:10px">' + r.casas + ' casa' + (r.casas === 1 ? '' : 's') + ' · ' + r.pessoas + ' pessoa' + (r.pessoas === 1 ? '' : 's') + ' ativas. Cada casa tem a sua própria planilha — uma não vê a outra.</div>';
+    if (!r.pendentes.length) h += '<div class="help">Nenhum cadastro aguardando aprovação.</div>';
+    r.pendentes.forEach(function(p){
+      h += '<div class="cfg-row"><div><div style="font-weight:600">' + esc(p.nome) + '</div><div class="help">' + esc(p.email) + '</div></div><div style="display:flex;gap:6px"><button class="btn sm" data-act="adm-aprovar" data-id="' + esc(p.id) + '">Aprovar</button><button class="btn danger sm" data-act="adm-recusar" data-id="' + esc(p.id) + '">Recusar</button></div></div>';
+    });
+    box.innerHTML = h;
+  });
+}
+ACT['adm-aprovar'] = async function(el){
+  el.disabled = true; var r = await api('admin_aprovar', {id: el.dataset.id});
+  if (!r.ok) { el.disabled = false; return toast(r.error || 'Erro ao aprovar', true); }
+  toast('Aprovado — a pessoa recebeu um e-mail ✅'); carregarAdm();
+};
+ACT['adm-recusar'] = async function(el){
+  if (!confirm('Recusar este cadastro?')) return;
+  el.disabled = true; var r = await api('admin_recusar', {id: el.dataset.id});
+  if (!r.ok) { el.disabled = false; return toast(r.error || 'Erro', true); }
+  toast('Cadastro recusado'); carregarAdm();
+};
 </script>
 </body>
 </html>
