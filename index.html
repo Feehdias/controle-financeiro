@@ -405,7 +405,7 @@ function normL(r){
   return {id: String(r.id), tipo: r.tipo, categoria: r.categoria || '', sub: r.sub || '', desc: r.desc || '', valor: Number(r.valor) || 0,
     data: data, ym: data.substring(0, 7), obs: r.obs || '', pagamento: r.pagamento || '', parcAtual: r.parcAtual, parcTotal: r.parcTotal,
     autor: r.autor || '', meta_id: r.meta_id ? String(r.meta_id) : '', cartao: r.cartao || '', fatura_ym: fy,
-    pv: String(r.provisionado == null || r.provisionado === '' ? '0' : r.provisionado), previsto: String(r.provisionado) === '1'};
+    pv: String(r.provisionado == null || r.provisionado === '' ? '0' : r.provisionado), previsto: String(r.provisionado) === '1' || (String(r.provisionado) !== '2' && data > hojeISO())};
 }
 var _idx = null, _memo = {};
 function dirty(){ _idx = null; _memo = {}; }
@@ -446,16 +446,16 @@ function caixinhaStatus(ym){
 function mesCalc(ym){
   if (_memo['m' + ym]) return _memo['m' + ym];
   var L = idx().byYm[ym] || [], F = idx().byFat[ym] || [];
-  var ent = 0, pix = 0, inv = 0;
+  var ent = 0, pix = 0, inv = 0, invPrev = 0;
   L.forEach(function(l){
     if (l.tipo === 'Entrada') ent += l.valor;
-    else if (l.tipo === 'Investimento') inv += l.valor;
+    else if (l.tipo === 'Investimento') { inv += l.valor; if (l.previsto) invPrev += l.valor; }
     else if (l.tipo === 'Saída' && l.pagamento !== 'Cartão') pix += l.valor;
   });
   var fatura = sum(F, function(l){ return l.valor; });
   var reserva = 0;
   if (ym >= ymNow()) reserva = sum(caixinhaStatus(ym), function(c){ return Math.max(0, c.resta); });
-  var r = {ym: ym, ent: ent, pix: pix, fatura: fatura, inv: inv, reserva: reserva, gastos: pix + fatura, saidas: pix + fatura + inv + reserva, nFatura: F.length};
+  var r = {ym: ym, ent: ent, pix: pix, fatura: fatura, inv: inv, invPrev: invPrev, reserva: reserva, gastos: pix + fatura, saidas: pix + fatura + inv + reserva, nFatura: F.length};
   _memo['m' + ym] = r; return r;
 }
 function startYM(){ var i = S.cfg.inicio; if (i && /^\d{4}-\d{2}$/.test(i)) return i; return idx().first || ymNow(); }
@@ -498,13 +498,14 @@ function previsao(){
 }
 
 /* metas e patrimônio */
-function metaAtual(m){ return (Number(m.inicial) || 0) + sum(S.lancs.filter(function(l){ return l.tipo === 'Investimento' && l.meta_id === m.id; }), function(l){ return l.valor; }); }
+function metaAtual(m){ return (Number(m.inicial) || 0) + sum(S.lancs.filter(function(l){ return l.tipo === 'Investimento' && l.meta_id === m.id && !l.previsto; }), function(l){ return l.valor; }); }
+function metaPrevisto(m){ return sum(S.lancs.filter(function(l){ return l.tipo === 'Investimento' && l.meta_id === m.id && l.previsto; }), function(l){ return l.valor; }); }
 function aportesPorPessoa(m){
-  var o = {}; S.lancs.forEach(function(l){ if (l.tipo === 'Investimento' && l.meta_id === m.id) { var n = l.autor || '—'; o[n] = (o[n] || 0) + l.valor; } }); return o;
+  var o = {}; S.lancs.forEach(function(l){ if (l.tipo === 'Investimento' && l.meta_id === m.id && !l.previsto) { var n = l.autor || '—'; o[n] = (o[n] || 0) + l.valor; } }); return o;
 }
 function patrimonio(){
   var ini = S.cfg.inicio && /^\d{4}-\d{2}$/.test(S.cfg.inicio) ? S.cfg.inicio : null, hoje = hojeISO();
-  var inv = S.lancs.filter(function(l){ return l.tipo === 'Investimento' && l.data <= hoje && (!ini || l.ym >= ini); });
+  var inv = S.lancs.filter(function(l){ return l.tipo === 'Investimento' && !l.previsto && l.data <= hoje && (!ini || l.ym >= ini); });
   var total = cfgNum('patrimonio_inicial', 0) + sum(inv, function(l){ return l.valor; });
   var porCat = {}; inv.forEach(function(l){ porCat[l.categoria] = (porCat[l.categoria] || 0) + l.valor; });
   var ap = []; for (var i = 1; i <= 3; i++) { var c = mesCalc(ymAdd(ymNow(), -i)); if (c.inv > 0 || c.ent > 0) ap.push(c.inv); }
@@ -691,7 +692,7 @@ function insights(ym){
   // fatura pesada
   if (c.fatura > 0 && c.ent > 0 && c.fatura / c.ent >= 0.35) out.push({tom: 'warn', ic: '💳', t: 'A fatura de ' + mesNome(ym) + ' (' + brl0(c.fatura) + ') pesa ' + Math.round(c.fatura / c.ent * 100) + '% das entradas do mês.'});
   // poupança
-  if (c.ent > 0 && c.inv > 0) { var t = c.inv / c.ent; out.push({tom: t >= 0.2 ? 'ok' : 'info', ic: '🌱', t: 'Vocês investiram <b>' + Math.round(t * 100) + '%</b> da renda em ' + mesNome(ym) + (t >= 0.2 ? ' — acima da meta de 20%. Parabéns!' : '. Uma meta comum é guardar 20%.')}); }
+  if (c.ent > 0 && c.inv - c.invPrev > 0) { var t = (c.inv - c.invPrev) / c.ent; out.push({tom: t >= 0.2 ? 'ok' : 'info', ic: '🌱', t: 'Vocês investiram <b>' + Math.round(t * 100) + '%</b> da renda em ' + mesNome(ym) + (t >= 0.2 ? ' — acima da meta de 20%. Parabéns!' : '. Uma meta comum é guardar 20%.')}); }
   else if (c.ent > 0 && ym <= now && c.inv === 0 && L.length > 3) out.push({tom: 'info', ic: '🌱', t: 'Ainda não há investimentos registrados em ' + mesNome(ym) + '. Guardar logo que o dinheiro entra ajuda a manter o hábito.'});
   // saldo previsto negativo
   if (ym === now) { var p = previsao(); if (p) { var neg = p.fut.filter(function(f){ return f.saldo < 0; })[0]; if (neg) out.push({tom: 'bad', ic: '📉', t: 'Pelo ritmo atual, o saldo previsto fica <b>negativo em ' + mesNome(neg.ym) + '</b>. Vale olhar a aba Fluxo → Previsão.'}); } }
@@ -727,7 +728,7 @@ function renderInicio(){
   h += '<div class="kpis">' +
     '<div class="kpi"><div class="kpi-l">Entradas</div><div class="kpi-v g">' + brl(c.ent) + '</div><div class="kpi-s">dinheiro que entrou</div></div>' +
     '<div class="kpi"><div class="kpi-l">Gastos</div><div class="kpi-v r">' + brl(c.gastos) + '</div><div class="kpi-s">Pix/débito ' + brl0(c.pix) + ' + fatura ' + brl0(c.fatura) + '</div></div>' +
-    '<div class="kpi"><div class="kpi-l">Investido</div><div class="kpi-v b">' + brl(c.inv) + '</div><div class="kpi-s">' + (c.ent > 0 ? Math.round(c.inv / c.ent * 100) + '% da renda' : 'aportes do mês') + '</div></div>' +
+    '<div class="kpi"><div class="kpi-l">Investido</div><div class="kpi-v b">' + brl(c.inv - c.invPrev) + '</div><div class="kpi-s">' + (c.invPrev > 0 ? '🕒 + ' + brl0(c.invPrev) + ' previsto (confirme em Para confirmar)' : (c.ent > 0 ? Math.round(c.inv / c.ent * 100) + '% da renda' : 'aportes do mês')) + '</div></div>' +
     '<div class="kpi"><div class="kpi-l">Saldo acumulado</div><div class="kpi-v ' + (sm && sm.saldo < 0 ? 'r' : 'g') + '">' + (sm ? brlS(sm.saldo) : '—') + '</div><div class="kpi-s">' +
       (sm ? (sm.ym > startYM() || baseSaldo() ? 'inclui ' + brlS(sm.anterior) + ' que veio de ' + mesNome(prev) : 'primeiro mês do controle') + (c.reserva > 0 ? '<br>' + brl0(c.reserva) + ' ainda reservados nas caixinhas → livre ' + brlS(sm.livre) : '') : 'antes do início') + '</div></div>' +
     '</div>';
@@ -768,7 +769,7 @@ function caixinhaCard(x, mini){
 }
 function metaCard(m, mini){
   var atual = metaAtual(m), pct = m.alvo > 0 ? Math.min(1, atual / m.alvo) : 0, falta = Math.max(0, m.alvo - atual), now = ymNow();
-  var h = '<div class="card"><div class="meta-top"><div class="em">' + esc(m.emoji || '🎯') + '</div><div style="flex:1;min-width:0"><div class="nm">' + esc(m.nome) + '</div><div class="sb">' + brl0(atual) + ' de ' + brl0(m.alvo) + (m.prazo ? ' · até ' + ymAbr(m.prazo) : '') + '</div></div><div style="font-weight:800;font-size:18px" class="' + (pct >= 1 ? 'g' : '') + '">' + Math.round(pct * 100) + '%</div></div>' +
+  var h = '<div class="card"><div class="meta-top"><div class="em">' + esc(m.emoji || '🎯') + '</div><div style="flex:1;min-width:0"><div class="nm">' + esc(m.nome) + '</div><div class="sb">' + brl0(atual) + ' de ' + brl0(m.alvo) + (metaPrevisto(m) > 0 ? ' · 🕒 +' + brl0(metaPrevisto(m)) + ' previsto' : '') + (m.prazo ? ' · até ' + ymAbr(m.prazo) : '') + '</div></div><div style="font-weight:800;font-size:18px" class="' + (pct >= 1 ? 'g' : '') + '">' + Math.round(pct * 100) + '%</div></div>' +
     '<div class="bar"><i style="width:' + Math.round(pct * 100) + '%;background:var(--accent)"></i></div>';
   if (!mini) {
     if (falta > 0 && m.prazo && m.prazo >= now) { var meses = (+m.prazo.slice(0, 4) - +now.slice(0, 4)) * 12 + (+m.prazo.slice(5, 7) - +now.slice(5, 7)) + 1; h += '<div class="help" style="margin-top:9px">Faltam <b>' + brl0(falta) + '</b>. Guardando <b>' + brl0(falta / meses) + ' por mês</b>, vocês chegam lá no prazo.</div>'; }
