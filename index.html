@@ -1308,7 +1308,7 @@ function renderAjustes(){
   var admin = u.papel === 'admin', cks = cartoes(), ini = S.cfg.inicio || '';
   var h = '<div class="month-bar"><div class="month-title">Ajustes</div><div style="display:flex;gap:8px;align-items:center">' + eyeBtn() + '<button class="sync" data-act="sync"></button></div></div>';
   h += '<div class="sec">Conta</div><div class="card"><div class="cfg-row"><div><div style="font-weight:700">' + esc(u.nome) + '</div><div class="help">' + esc(u.email) + ' · ' + (admin ? 'administrador da casa' : 'membro da casa') + '</div></div></div>' +
-    '<div class="row" style="gap:8px;margin-top:10px"><button class="btn sec2 sm" data-act="trocar-senha" style="flex:1">Trocar senha</button><button class="btn danger sm" data-act="sair" style="flex:1">Sair</button></div></div>';
+    '<div class="row" style="gap:8px;margin-top:10px"><button class="btn sec2 sm" data-act="trocar-senha" style="flex:1">Trocar senha</button><button class="btn danger sm" data-act="sair" style="flex:1">Sair</button></div><button class="btn sec2 sm" data-act="sair-todos" style="width:100%;margin-top:8px">Sair de todos os aparelhos</button></div>';
 
   h += '<div class="sec">Casa</div><div class="card" id="casa-box"><div class="help">Carregando pessoas…</div></div>';
 
@@ -1330,6 +1330,11 @@ function renderAjustes(){
   ligarCartoes(); renderCasa(); renderSal(); if (u.super) carregarAdm();
   if (!S.membros || Date.now() - (S.membrosAt || 0) > 10000) api('membros', {}).then(function(r){ if (r.ok) { S.membros = r.membros; S.convites = r.convites; S.maxMembros = r.max; S.membrosAt = Date.now(); if (S.tab === 'ajustes') renderCasa(); } });
 }
+ACT['sair-todos'] = async function(){
+  if (!confirm('Encerrar a sessão em TODOS os aparelhos (inclusive este)? Será preciso entrar de novo.')) return;
+  var r = await api('logout_todos', {}); if (!r.ok) return toast(r.error || 'Não foi possível agora.', true);
+  sair(true); toast('Sessões encerradas em todos os aparelhos.');
+};
 ACT.sair = function(){ if (confirm('Sair da sua conta neste aparelho?')) sair(false); };
 function ckRow(nome, dia){ return '<div class="ckrow"><input class="ck-nome" type="text" maxlength="30" placeholder="Nome do cartão" value="' + esc(nome) + '" aria-label="Nome do cartão"><input class="ck-dia d" type="number" min="1" max="28" value="' + dia + '" aria-label="Dia de fechamento"><button class="x ck-del" aria-label="Remover cartão">×</button></div>'; }
 function ligarCartoes(){ document.querySelectorAll('.ck-del').forEach(function(b){ b.onclick = function(){ if (document.querySelectorAll('#ck-rows .ckrow').length > 1) b.closest('.ckrow').remove(); else toast('Mantenha ao menos um cartão', true); }; }); }
