@@ -113,6 +113,8 @@ a{color:var(--accent2)}
 
 /* lista de lançamentos */
 .tx{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--border);border-radius:13px;padding:11px 12px;margin-bottom:7px}
+.eye{background:var(--card);border:1px solid var(--border);border-radius:10px;width:34px;height:30px;font-size:15px;cursor:pointer;line-height:1}
+.eyebar{display:flex;justify-content:flex-end;margin-bottom:8px}
 .tx.prev{border-style:dashed;opacity:.92}
 .tx .ic{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
 .tx .mid{flex:1;min-width:0}
@@ -337,8 +339,8 @@ function dataNoMes(ym, dia){ return ym + '-' + pad(Math.min(dia, diasNoMes(ym)))
 function fmtBR(iso){ var p = String(iso).split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
 var NF = new Intl.NumberFormat('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 var NF0 = new Intl.NumberFormat('pt-BR', {maximumFractionDigits: 0});
-function brl(v){ return 'R$ ' + NF.format(Math.abs(v || 0)); }
-function brl0(v){ return 'R$ ' + NF0.format(Math.abs(v || 0)); }
+function brl(v){ return S.oculto ? 'R$ XX.XXX,XX' : 'R$ ' + NF.format(Math.abs(v || 0)); }
+function brl0(v){ return S.oculto ? 'R$ XX.XXX' : 'R$ ' + NF0.format(Math.abs(v || 0)); }
 function brlS(v){ return (v < -0.004 ? '− ' : '') + brl(v); }
 function r2(v){ return Math.round(v * 100) / 100; }
 function parseMoney(s){
@@ -534,6 +536,9 @@ async function marcarPrevistos(){
   dirty(); render();
 }
 
+/* modo privacidade: oculta os valores (fica só a estrutura da página) */
+try { S.oculto = localStorage.getItem('cf2_oculto') === '1'; } catch (e) {}
+
 /* ═══════════════ SESSÃO / ENTRADA ═══════════════ */
 var ACT = {};
 function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -658,8 +663,10 @@ function render(){
   var y = $('content').scrollTop; f(); $('content').scrollTop = y;
   var b = document.querySelector('.sync'); if (b) updSync(b);
 }
+function eyeBtn(){ var t = S.oculto ? 'Mostrar valores' : 'Ocultar valores'; return '<button class="eye" data-act="olho" aria-label="' + t + '" title="' + t + '">' + (S.oculto ? '🙈' : '👁️') + '</button>'; }
+function eyeBar(){ return '<div class="eyebar">' + eyeBtn() + '</div>'; }
 function topbar(){
-  return '<div class="topbar"><div class="hello">Olá, <b>' + esc(primeiroNome(S.user && S.user.nome)) + '</b> 👋</div><button class="sync" data-act="sync"></button></div>';
+  return '<div class="topbar"><div class="hello">Olá, <b>' + esc(primeiroNome(S.user && S.user.nome)) + '</b> 👋</div><div style="display:flex;gap:8px;align-items:center">' + eyeBtn() + '<button class="sync" data-act="sync"></button></div></div>';
 }
 function monthBar(titulo, sub){
   return '<div class="month-bar"><div><div class="month-title">' + esc(titulo) + '</div>' + (sub ? '<div class="help">' + sub + '</div>' : '') + '</div><div class="mnav"><button data-act="mes" data-d="-1" aria-label="Mês anterior">‹</button><button data-act="mes" data-d="1" aria-label="Próximo mês">›</button></div></div>';
@@ -799,7 +806,7 @@ function renderLanc(){
   var el = $('p-lanc');
   if (!S.loaded) { el.innerHTML = topbar() + vazio('⏳', 'Carregando…', ''); return; }
   var filtros = [['todos', 'Todos'], ['entradas', 'Entradas'], ['saidas', 'Saídas'], ['cartao', 'Cartão'], ['pix', 'Pix/Débito'], ['invest', 'Investimentos']];
-  var h = monthBar(ymLabel(S.ym), 'Tudo que foi lançado neste mês') +
+  var h = eyeBar() + monthBar(ymLabel(S.ym), 'Tudo que foi lançado neste mês') +
     '<div class="chips">' + filtros.map(function(f){ return '<button class="chip ' + (S.filtro === f[0] ? 'on' : '') + '" data-act="filtro" data-v="' + f[0] + '">' + f[1] + '</button>'; }).join('') + '</div>' +
     '<div class="field"><input id="busca" type="search" placeholder="🔎 Buscar por nome, categoria ou pessoa" value="' + esc(S.busca) + '"></div>' +
     '<div class="row" style="margin-bottom:10px"><span class="help" id="lanc-resumo"></span><button class="chip" data-act="sel-modo">' + (S.selMode ? 'Cancelar' : 'Selecionar vários') + '</button></div>' +
@@ -855,6 +862,12 @@ ACT.estorno = async function(el){
   r.criados.forEach(function(o){ S.lancs.push(normL(o)); }); dirty(); toast('Estorno registrado como entrada'); render();
 };
 
+ACT.olho = function(){
+  S.oculto = !S.oculto;
+  try { localStorage.setItem('cf2_oculto', S.oculto ? '1' : '0'); } catch (e) {}
+  render();
+};
+
 /* ═══════════════ FLUXO ═══════════════ */
 var _charts = {};
 function novoGrafico(id, cfg){
@@ -862,12 +875,12 @@ function novoGrafico(id, cfg){
   var cv = $(id); if (!cv || !window.Chart) return;
   _charts[id] = new Chart(cv, cfg);
 }
-function n0(v){ return NF0.format(Math.round(v)); }
+function n0(v){ return S.oculto ? 'XX.XXX' : NF0.format(Math.round(v)); }
 function renderFluxo(){
   var el = $('p-fluxo');
   if (!S.loaded) { el.innerHTML = topbar() + vazio('⏳', 'Carregando…', ''); return; }
   var tabs = [['fluxo', 'Fluxo de caixa'], ['fatura', 'Faturas'], ['previsao', 'Previsão']];
-  var h = '<div class="tabs2">' + tabs.map(function(t){ return '<button class="' + (S.fluxoTab === t[0] ? 'on' : '') + '" data-act="fluxo-tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
+  var h = eyeBar() + '<div class="tabs2">' + tabs.map(function(t){ return '<button class="' + (S.fluxoTab === t[0] ? 'on' : '') + '" data-act="fluxo-tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
   el.innerHTML = h + '<div id="fluxo-corpo"></div>';
   if (S.fluxoTab === 'fluxo') fluxoTabela(); else if (S.fluxoTab === 'fatura') fluxoFaturas(); else fluxoPrevisao();
 }
@@ -951,7 +964,7 @@ function fluxoPrevisao(){
     {label: 'Pior cenário', data: lo, borderColor: 'rgba(0,200,150,.0)', pointRadius: 0, tension: .25}]},
     options: {responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false},
       plugins: {legend: {display: false}, tooltip: {filter: function(i){ return i.datasetIndex < 2 && i.raw != null; }, callbacks: {label: function(c){ return ' ' + c.dataset.label + ': ' + brlS(c.parsed.y); }}}},
-      scales: {y: {grid: {color: 'rgba(255,255,255,.06)'}, ticks: {color: '#8aa5b8', callback: function(v){ return (Math.abs(v) >= 1000 ? Math.round(v / 1000) + 'k' : v); }}, border: {display: false}}, x: {grid: {display: false}, ticks: {color: '#8aa5b8', font: {size: 10}, maxRotation: 0, autoSkip: true, maxTicksLimit: 9}, border: {display: false}}}}});
+      scales: {y: {grid: {color: 'rgba(255,255,255,.06)'}, ticks: {color: '#8aa5b8', callback: function(v){ if (S.oculto) return ''; return (Math.abs(v) >= 1000 ? Math.round(v / 1000) + 'k' : v); }}, border: {display: false}}, x: {grid: {display: false}, ticks: {color: '#8aa5b8', font: {size: 10}, maxRotation: 0, autoSkip: true, maxTicksLimit: 9}, border: {display: false}}}}});
 }
 
 /* ═══════════════ PLANEJAR ═══════════════ */
@@ -959,7 +972,7 @@ function renderPlan(){
   var el = $('p-plan');
   if (!S.loaded) { el.innerHTML = topbar() + vazio('⏳', 'Carregando…', ''); return; }
   var tabs = [['metas', '🎯 Metas'], ['caixinhas', '💰 Caixinhas'], ['patrimonio', '📈 Patrimônio']];
-  el.innerHTML = '<div class="tabs2">' + tabs.map(function(t){ return '<button class="' + (S.planTab === t[0] ? 'on' : '') + '" data-act="plan-tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div id="plan-corpo"></div>';
+  el.innerHTML = eyeBar() + '<div class="tabs2">' + tabs.map(function(t){ return '<button class="' + (S.planTab === t[0] ? 'on' : '') + '" data-act="plan-tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div id="plan-corpo"></div>';
   if (S.planTab === 'metas') planMetas(); else if (S.planTab === 'caixinhas') planCaixinhas(); else planPatrimonio();
 }
 ACT['plan-tab'] = function(el){ S.planTab = el.dataset.v; renderPlan(); };
@@ -998,7 +1011,7 @@ function planPatrimonio(){
   var labels = ['Hoje'].concat(proj.map(function(x){ return ymAbr(x.ym); })), data = [r2(p.total)].concat(proj.map(function(x){ return r2(x.v); }));
   novoGrafico('ch-patr', {type: 'line', data: {labels: labels, datasets: [{data: data, borderColor: '#0099ff', backgroundColor: 'rgba(0,153,255,.15)', fill: true, borderWidth: 2.5, pointRadius: 2, tension: .3}]},
     options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}, tooltip: {callbacks: {label: function(c){ return ' ' + brl(c.parsed.y); }}}},
-      scales: {y: {grid: {color: 'rgba(255,255,255,.06)'}, ticks: {color: '#8aa5b8', callback: function(v){ return Math.abs(v) >= 1000 ? Math.round(v / 1000) + 'k' : v; }}, border: {display: false}}, x: {grid: {display: false}, ticks: {color: '#8aa5b8', font: {size: 10}, maxTicksLimit: 7, maxRotation: 0}, border: {display: false}}}}});
+      scales: {y: {grid: {color: 'rgba(255,255,255,.06)'}, ticks: {color: '#8aa5b8', callback: function(v){ if (S.oculto) return ''; return Math.abs(v) >= 1000 ? Math.round(v / 1000) + 'k' : v; }}, border: {display: false}}, x: {grid: {display: false}, ticks: {color: '#8aa5b8', font: {size: 10}, maxTicksLimit: 7, maxRotation: 0}, border: {display: false}}}}});
 }
 
 /* ═══════════════ MODAIS ═══════════════ */
@@ -1293,7 +1306,7 @@ function renderAjustes(){
   var el = $('p-ajustes'), u = S.user;
   if (!S.loaded) { el.innerHTML = topbar() + vazio('⏳', 'Carregando…', ''); return; }
   var admin = u.papel === 'admin', cks = cartoes(), ini = S.cfg.inicio || '';
-  var h = '<div class="month-bar"><div class="month-title">Ajustes</div><button class="sync" data-act="sync"></button></div>';
+  var h = '<div class="month-bar"><div class="month-title">Ajustes</div><div style="display:flex;gap:8px;align-items:center">' + eyeBtn() + '<button class="sync" data-act="sync"></button></div></div>';
   h += '<div class="sec">Conta</div><div class="card"><div class="cfg-row"><div><div style="font-weight:700">' + esc(u.nome) + '</div><div class="help">' + esc(u.email) + ' · ' + (admin ? 'administrador da casa' : 'membro da casa') + '</div></div></div>' +
     '<div class="row" style="gap:8px;margin-top:10px"><button class="btn sec2 sm" data-act="trocar-senha" style="flex:1">Trocar senha</button><button class="btn danger sm" data-act="sair" style="flex:1">Sair</button></div></div>';
 
