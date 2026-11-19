@@ -555,6 +555,19 @@ function carregarMembros(){
   api('membros', {}).then(function(r){ if (r && r.ok) { S.membros = r.membros; S.membrosAt = Date.now(); } });
 }
 
+/* ── Financiamentos: controle à parte (não mexe no fluxo de caixa) ── */
+function finStatus(f){
+  var itens = f.vinculo_sub ? S.lancs.filter(function(l){ return l.tipo === 'Saída' && l.categoria === 'Financiamento' && l.sub === f.vinculo_sub && !l.previsto; }) : [];
+  var prev = f.vinculo_sub ? S.lancs.filter(function(l){ return l.tipo === 'Saída' && l.categoria === 'Financiamento' && l.sub === f.vinculo_sub && l.previsto; }) : [];
+  var pags = (S.pags || []).filter(function(p){ return p.fin_id === f.id; }).sort(function(a, b){ return a.data < b.data ? 1 : -1; });
+  var parcItens = itens.filter(function(l){ return l.desc !== 'Amortização'; }).length;
+  var pago = f.pago_ini + sum(itens, function(l){ return l.valor; }) + sum(pags, function(p){ return p.valor; });
+  var pagas = Math.min(f.parcelas, f.pagas_ini + parcItens + pags.length);
+  var saldo = Math.max(0, f.total - pago), rest = Math.max(0, f.parcelas - pagas);
+  var fim = rest > 0 ? ymAdd(ymNow(), rest) : '';
+  return {itens: itens, prev: prev, pags: pags, pago: pago, pagas: pagas, saldo: saldo, rest: rest, fim: fim, pct: f.total > 0 ? Math.min(100, pago / f.total * 100) : 0, quitado: saldo <= 0.005 || rest === 0 && pago >= f.total};
+}
+
 /* ═══════════════ SESSÃO / ENTRADA ═══════════════ */
 var ACT = {};
 function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -638,7 +651,7 @@ ACT['reset-trocar'] = async function(el){
 async function sair(expirou){
   if (!expirou && S.token) { try { await api('logout', {}); } catch (e) {} }
   try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
-  S.token = ''; S.user = null; S.lancs = []; S.objs = []; S.cfg = {}; S.loaded = false; S.membros = null; dirty(); closeModal();
+  S.token = ''; S.user = null; S.lancs = []; S.objs = []; S.fins = []; S.pags = []; S.cfg = {}; S.loaded = false; S.membros = null; dirty(); closeModal();
   show('auth'); ACT['auth-tab']({dataset: {v: 'login'}});
   if (expirou) toast('Sua sessão expirou. Entre novamente.', true);
 }
@@ -654,7 +667,7 @@ async function loadAll(){
   var r = null;
   for (var t = 0; t < 3; t++) { r = await api('dados', {}); if (r.ok || !r.network) break; await sleep(1500 * (t + 1)); }
   if (!r || !r.ok) { setSync('err'); if (r && r.error && !S.loaded && !r.network) toast(r.error, true); render(); return false; }
-  S.user = r.user; S.cfg = r.config || {}; S.objs = r.objetivos || [];
+  S.user = r.user; S.cfg = r.config || {}; S.objs = r.objetivos || []; S.fins = r.financiamentos || []; S.pags = r.pagamentos || [];
   S.lancs = (r.lancamentos || []).map(normL); S.loaded = true; S.syncAt = Date.now(); dirty(); setSync('ok'); saveSession(); render(); marcarPrevistos(); carregarMembros(); return true;
 }
 function setSync(v){ S.sync = v; var b = document.querySelector('.sync'); if (b) updSync(b); }
@@ -997,9 +1010,9 @@ function fluxoPrevisao(){
 function renderPlan(){
   var el = $('p-plan');
   if (!S.loaded) { el.innerHTML = topbar() + vazio('⏳', 'Carregando…', ''); return; }
-  var tabs = [['metas', '🎯 Metas'], ['caixinhas', '💰 Caixinhas'], ['patrimonio', '📈 Patrimônio']];
+  var tabs = [['metas', '🎯 Metas'], ['caixinhas', '💰 Caixinhas'], ['patrimonio', '📈 Patrimônio'], ['fin', '🏦 Financiamentos']];
   el.innerHTML = eyeBar() + '<div class="tabs2">' + tabs.map(function(t){ return '<button class="' + (S.planTab === t[0] ? 'on' : '') + '" data-act="plan-tab" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div><div id="plan-corpo"></div>';
-  if (S.planTab === 'metas') planMetas(); else if (S.planTab === 'caixinhas') planCaixinhas(); else planPatrimonio();
+  if (S.planTab === 'metas') planMetas(); else if (S.planTab === 'caixinhas') planCaixinhas(); else if (S.planTab === 'fin') planFin(); else planPatrimonio();
 }
 ACT['plan-tab'] = function(el){ S.planTab = el.dataset.v; renderPlan(); };
 
@@ -1038,6 +1051,29 @@ function planPatrimonio(){
   novoGrafico('ch-patr', {type: 'line', data: {labels: labels, datasets: [{data: data, borderColor: '#0099ff', backgroundColor: 'rgba(0,153,255,.15)', fill: true, borderWidth: 2.5, pointRadius: 2, tension: .3}]},
     options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}, tooltip: {callbacks: {label: function(c){ return ' ' + brl(c.parsed.y); }}}},
       scales: {y: {grid: {color: 'rgba(255,255,255,.06)'}, ticks: {color: '#8aa5b8', callback: function(v){ if (S.oculto) return ''; return Math.abs(v) >= 1000 ? Math.round(v / 1000) + 'k' : v; }}, border: {display: false}}, x: {grid: {display: false}, ticks: {color: '#8aa5b8', font: {size: 10}, maxTicksLimit: 7, maxRotation: 0}, border: {display: false}}}}});
+}
+
+function finCard(f){
+  var st = finStatus(f), h = '<div class="card" data-act="fin-det" data-id="' + esc(f.id) + '" role="button" tabindex="0" style="cursor:pointer">' +
+    '<div class="row"><div style="font-weight:700">' + esc(f.emoji || '🏦') + ' ' + esc(f.nome) + '</div><span class="pill ' + (st.quitado ? 'au' : '') + '">' + (st.quitado ? '✅ quitado' : st.pagas + ' de ' + f.parcelas + ' parcelas') + '</span></div>' +
+    '<div class="bar" style="margin:10px 0"><i style="width:' + st.pct.toFixed(1) + '%;background:var(--accent)"></i></div>' +
+    '<div class="two"><div><div class="help">Já pago</div><b class="g">' + brl(st.pago) + '</b></div><div><div class="help">Saldo devedor</div><b class="r">' + brl(st.saldo) + '</b></div></div>' +
+    '<div class="help" style="margin-top:8px">' + (st.quitado ? 'Parabéns, esse acabou! 🎉' : 'Faltam ' + st.rest + ' parcela' + (st.rest === 1 ? '' : 's') + (st.fim ? ' · término previsto ' + ymLabel(st.fim) : '')) +
+    ' · ' + (f.vinculo_sub ? '🔗 automático (Financiamento › ' + esc(f.vinculo_sub) + ')' : '✍️ controle manual') + '</div>' +
+    (st.prev.length ? '<div class="help">🕒 ' + st.prev.length + ' parcela' + (st.prev.length === 1 ? '' : 's') + ' prevista' + (st.prev.length === 1 ? '' : 's') + ' (não contam até confirmar)</div>' : '') +
+    (!f.vinculo_sub && !st.quitado ? '<button class="btn sec2 sm" data-act="pag-novo" data-id="' + esc(f.id) + '" style="margin-top:10px;width:100%">+ Registrar parcela paga</button>' : '') + '</div>';
+  return h;
+}
+function planFin(){
+  var h = '<div class="box">🏦 <b>Financiamentos</b> mostram quanto já foi pago, as parcelas e o saldo. <b>Automático:</b> o terreno, por exemplo, acompanha os lançamentos de Financiamento › Terreno. <b>Manual:</b> o carro, pago à parte, é só registrar aqui e <b>não vira saída</b> no seu fluxo.</div>';
+  if (!(S.fins || []).length) h += vazio('🏦', 'Nenhum financiamento ainda', 'Cadastre o terreno, o carro ou outro financiamento para acompanhar parcelas e saldo.', '');
+  else {
+    var tp = 0, ts = 0; S.fins.forEach(function(f){ var st = finStatus(f); tp += st.pago; ts += st.saldo; });
+    if (S.fins.length > 1) h += '<div class="card"><div class="two"><div><div class="help">Total já pago</div><b class="g">' + brl(tp) + '</b></div><div><div class="help">Saldo devedor total</div><b class="r">' + brl(ts) + '</b></div></div></div>';
+    S.fins.forEach(function(f){ h += finCard(f); });
+  }
+  h += '<button class="btn" data-act="fin-novo" style="margin-top:6px">+ Novo financiamento</button>';
+  $('plan-corpo').innerHTML = h;
 }
 
 /* ═══════════════ MODAIS ═══════════════ */
@@ -1342,6 +1378,97 @@ ACT['fat-det'] = function(el){
       return '<div class="row" style="padding:8px 0 8px 18px;border-bottom:1px solid var(--border);cursor:pointer" data-act="editar" data-id="' + esc(l.id) + '"><div style="min-width:0"><div style="font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(l.desc || l.sub || l.categoria) + '</div><div class="help">' + fmtBR(l.data).slice(0, 5) + ' · ' + esc(l.categoria) + (l.cartao && l.cartao !== 'Cartão' ? ' · ' + esc(l.cartao) : '') + (Number(l.parcTotal) > 1 ? ' · parcela ' + esc(l.parcAtual) + '/' + esc(l.parcTotal) : '') + '</div></div><span style="font-size:13.5px">' + brl(l.valor) + '</span></div>';
     }).join('') + '</details>';
   });
+  openModal(h);
+};
+
+/* ── Financiamentos: telas ── */
+ACT['fin-novo'] = function(){ openFin(''); };
+ACT['fin-edit'] = function(el){ openFin(el.dataset.id); };
+function openFin(id){
+  var f = id ? (S.fins || []).filter(function(x){ return x.id === id; })[0] : null, emoji = f ? f.emoji : '🏦';
+  var subs = Object.keys(CATS['Saída']['Financiamento'] || {});
+  var num = function(v){ return v ? String(v).replace('.', ',') : ''; };
+  var h = mHead(f ? 'Editar financiamento' : 'Novo financiamento') +
+    '<div class="field"><label for="fi-nome">Nome</label><input id="fi-nome" type="text" maxlength="60" placeholder="Ex.: Terreno, Carro" value="' + esc(f ? f.nome : '') + '"></div>' +
+    '<div class="field"><label>Ícone</label><div class="chips" id="fi-emojis">' + ['🏦','🏞️','🚗','🏠','🏍️','🛠️'].map(function(e){ return '<button class="chip' + (e === emoji ? ' on' : '') + '" data-e="' + e + '" style="font-size:18px">' + e + '</button>'; }).join('') + '</div></div>' +
+    '<div class="two"><div class="field"><label for="fi-total">Total a pagar (com juros)</label><input id="fi-total" type="text" inputmode="decimal" placeholder="150.000,00" value="' + num(f && f.total) + '"></div>' +
+    '<div class="field"><label for="fi-par">Nº de parcelas</label><input id="fi-par" type="text" inputmode="numeric" placeholder="60" value="' + (f ? f.parcelas : '') + '"></div></div>' +
+    '<div class="two"><div class="field"><label for="fi-vp">Valor da parcela</label><input id="fi-vp" type="text" inputmode="decimal" placeholder="2.500,00" value="' + num(f && f.valor_parcela) + '"></div>' +
+    '<div class="field"><label for="fi-pi">Parcelas já pagas antes do app</label><input id="fi-pi" type="text" inputmode="numeric" placeholder="0" value="' + (f && f.pagas_ini ? f.pagas_ini : '') + '"></div></div>' +
+    '<div class="field"><label for="fi-pgi">Valor já pago antes do app (R$)</label><input id="fi-pgi" type="text" inputmode="decimal" placeholder="0,00" value="' + num(f && f.pago_ini) + '"><div class="hint">Entrada e parcelas antigas somadas. Se deixar vazio, o app usa parcelas × valor da parcela.</div></div>' +
+    '<div class="field"><label for="fi-vinc">Como acompanhar os pagamentos?</label><select id="fi-vinc"><option value="">✍️ Manual — registro aqui, não vira saída</option>' +
+      subs.map(function(s){ return '<option value="' + esc(s) + '"' + (f && f.vinculo_sub === s ? ' selected' : '') + '>🔗 Automático — lançamentos de Financiamento › ' + esc(s) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="err" id="fi-err"></div><button class="btn" id="fi-salvar">Salvar</button>' + (f ? '<button class="btn danger" id="fi-excluir" style="margin-top:8px">🗑️ Excluir financiamento</button>' : '');
+  openModal(h, function(md){
+    var q = function(i){ return md.querySelector('#' + i); };
+    md.querySelectorAll('#fi-emojis button').forEach(function(b){ b.addEventListener('click', function(){ emoji = b.dataset.e; md.querySelectorAll('#fi-emojis button').forEach(function(x){ x.classList.toggle('on', x === b); }); }); });
+    if (f) q('fi-excluir').addEventListener('click', async function(){
+      if (!confirm('Excluir “' + f.nome + '”? Os lançamentos continuam registrados; os pagamentos manuais daqui serão apagados.')) return;
+      var r = await api('fin_excluir', {id: f.id}); if (!r.ok) return q('fi-err').textContent = r.error;
+      S.fins = S.fins.filter(function(x){ return x.id !== f.id; }); S.pags = S.pags.filter(function(p){ return p.fin_id !== f.id; }); closeModal(); toast('Financiamento excluído'); render();
+    });
+    q('fi-salvar').addEventListener('click', function(){
+      var nome = q('fi-nome').value.trim(), total = parseMoney(q('fi-total').value), par = parseInt(q('fi-par').value, 10);
+      var vp = q('fi-vp').value.trim() ? parseMoney(q('fi-vp').value) : (total > 0 && par > 0 ? Math.round(total / par * 100) / 100 : 0);
+      var pi = parseInt(q('fi-pi').value, 10) || 0, pgi = q('fi-pgi').value.trim() ? parseMoney(q('fi-pgi').value) : Math.round(pi * vp * 100) / 100;
+      if (!nome) return q('fi-err').textContent = 'Dê um nome.';
+      if (!(total > 0)) return q('fi-err').textContent = 'Informe o total a pagar.';
+      if (!(par >= 1 && par <= 600)) return q('fi-err').textContent = 'Informe o número de parcelas.';
+      if (pi < 0 || pi > par) return q('fi-err').textContent = 'Parcelas já pagas não pode passar do total.';
+      if (isNaN(pgi) || pgi < 0) return q('fi-err').textContent = 'Valor já pago inválido.';
+      comBotao(q('fi-salvar'), 'Salvando…', async function(){
+        var r = await api('fin_salvar', {id: f ? f.id : undefined, nome: nome, emoji: emoji, total: total, parcelas: par, valor_parcela: vp, pagas_ini: pi, pago_ini: pgi, vinculo_sub: q('fi-vinc').value});
+        if (!r.ok) return q('fi-err').textContent = r.error;
+        var o = r.financiamento; if (f) S.fins = S.fins.map(function(x){ return x.id === f.id ? o : x; }); else S.fins.push(o);
+        closeModal(); toast('Financiamento salvo'); render();
+      });
+    });
+  });
+}
+ACT['pag-novo'] = function(el){ openPag(el.dataset.id, ''); };
+function openPag(finId, pagId){
+  var f = S.fins.filter(function(x){ return x.id === finId; })[0], p = pagId ? S.pags.filter(function(x){ return x.id === pagId; })[0] : null; if (!f) return;
+  var h = mHead((p ? 'Editar' : 'Registrar') + ' pagamento · ' + esc(f.nome)) +
+    '<div class="two"><div class="field"><label for="pg-valor">Valor pago</label><input id="pg-valor" type="text" inputmode="decimal" placeholder="0,00" value="' + String(p ? p.valor : (f.valor_parcela || '')).replace('.', ',') + '"></div>' +
+    '<div class="field"><label for="pg-data">Data</label><input id="pg-data" type="date" value="' + esc(p ? p.data : hojeISO()) + '"></div></div>' +
+    '<div class="field"><label for="pg-obs">Observação (opcional)</label><input id="pg-obs" type="text" maxlength="200" value="' + esc(p ? p.obs : '') + '"></div>' +
+    '<div class="err" id="pg-err"></div><button class="btn" id="pg-salvar">Salvar</button>' + (p ? '<button class="btn danger" id="pg-excluir" style="margin-top:8px">🗑️ Excluir pagamento</button>' : '');
+  openModal(h, function(md){
+    var q = function(i){ return md.querySelector('#' + i); };
+    if (p) q('pg-excluir').addEventListener('click', async function(){
+      if (!confirm('Excluir este pagamento?')) return;
+      var r = await api('pag_excluir', {id: p.id}); if (!r.ok) return q('pg-err').textContent = r.error;
+      S.pags = S.pags.filter(function(x){ return x.id !== p.id; }); closeModal(); toast('Pagamento excluído'); render();
+    });
+    q('pg-salvar').addEventListener('click', function(){
+      var v = parseMoney(q('pg-valor').value), d = q('pg-data').value;
+      if (!(v > 0)) return q('pg-err').textContent = 'Informe o valor pago.';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return q('pg-err').textContent = 'Escolha a data.';
+      comBotao(q('pg-salvar'), 'Salvando…', async function(){
+        var r = await api('pag_salvar', {id: p ? p.id : undefined, fin_id: f.id, valor: v, data: d, obs: q('pg-obs').value.trim()});
+        if (!r.ok) return q('pg-err').textContent = r.error;
+        var o = r.pagamento; if (p) S.pags = S.pags.map(function(x){ return x.id === p.id ? o : x; }); else S.pags.push(o);
+        closeModal(); toast('Pagamento registrado ✅'); render();
+      });
+    });
+  });
+}
+ACT['pag-ed'] = function(el){ openPag(el.dataset.fin, el.dataset.id); };
+ACT['fin-det'] = function(el){
+  var f = S.fins.filter(function(x){ return x.id === el.dataset.id; })[0]; if (!f) return; var st = finStatus(f);
+  var h = mHead(esc(f.emoji || '🏦') + ' ' + esc(f.nome)) +
+    '<div class="card"><div class="two"><div><div class="help">Total a pagar</div><b>' + brl(f.total) + '</b></div><div><div class="help">Parcela</div><b>' + (f.valor_parcela ? brl(f.valor_parcela) : '—') + '</b></div>' +
+    '<div><div class="help">Já pago</div><b class="g">' + brl(st.pago) + '</b></div><div><div class="help">Saldo devedor</div><b class="r">' + brl(st.saldo) + '</b></div></div>' +
+    '<div class="help" style="margin-top:8px">' + st.pagas + ' de ' + f.parcelas + ' parcelas pagas' + (st.rest ? ' · faltam ' + st.rest : '') + (f.pagas_ini || f.pago_ini ? ' · inclui ' + f.pagas_ini + ' parcela(s) e ' + brl(f.pago_ini) + ' de antes do app' : '') + '</div></div>' +
+    '<div class="sec">' + (f.vinculo_sub ? 'Pagamentos (vêm dos lançamentos)' : 'Pagamentos registrados') + '</div>';
+  var lista = f.vinculo_sub ? st.itens.slice().sort(function(a, b){ return a.data < b.data ? 1 : -1; }) : st.pags;
+  if (!lista.length) h += '<div class="help" style="margin-bottom:10px">Nada registrado ainda.</div>';
+  else h += lista.map(function(x){
+    var ac = f.vinculo_sub ? 'data-act="editar" data-id="' + esc(x.id) + '"' : 'data-act="pag-ed" data-id="' + esc(x.id) + '" data-fin="' + esc(f.id) + '"';
+    return '<div class="row" style="padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer" ' + ac + '><div><div style="font-size:13.5px">' + fmtBR(x.data) + (f.vinculo_sub ? ' · ' + esc(x.desc || x.sub) : (x.obs ? ' · ' + esc(x.obs) : '')) + '</div></div><b>' + brl(x.valor) + '</b></div>';
+  }).join('');
+  if (f.vinculo_sub && st.prev.length) h += '<div class="help" style="margin-top:8px">🕒 ' + st.prev.length + ' prevista(s), contam quando confirmadas.</div>';
+  h += '<div style="display:flex;gap:8px;margin-top:14px">' + (!f.vinculo_sub ? '<button class="btn sm" data-act="pag-novo" data-id="' + esc(f.id) + '" style="flex:1">+ Registrar parcela</button>' : '') + '<button class="btn sec2 sm" data-act="fin-edit" data-id="' + esc(f.id) + '" style="flex:1">✏️ Editar</button></div>';
   openModal(h);
 };
 
