@@ -737,7 +737,7 @@ function quemFatura(ym){
   var por = {}, n = 0;
   (idx().byFat[ym] || []).forEach(function(l){ var p = pessoaDe(l) || '—'; if (!por[p]) { por[p] = 0; n++; } por[p] += l.valor; });
   if (n < 2) return '';
-  return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><div class="help" style="margin-bottom:6px">Quem gastou nesta fatura</div>' +
+  return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><div class="help" style="margin-bottom:6px">Quem gastou nesta fatura · toque para detalhar</div>' +
     Object.keys(por).sort(function(a, b){ return por[b] - por[a]; }).map(function(p){ return '<div class="row" style="padding:3px 0"><span>👤 ' + esc(p) + '</span><b>' + brl(por[p]) + '</b></div>'; }).join('') + '</div>';
 }
 function renderInicio(){
@@ -762,7 +762,7 @@ function renderInicio(){
   if (c.nFatura > 0 || ym >= ymNow()) {
     var porCartao = {}; (idx().byFat[ym] || []).forEach(function(l){ var n = l.cartao || 'Cartão'; porCartao[n] = (porCartao[n] || 0) + l.valor; });
     var det = Object.keys(porCartao).length > 1 ? Object.keys(porCartao).map(function(n){ return esc(n) + ' ' + brl0(porCartao[n]); }).join(' · ') : (c.nFatura + ' compra' + (c.nFatura === 1 ? '' : 's'));
-    h += '<div class="card fatura"><div class="row"><div><div class="kpi-l p">💳 Fatura do cartão em ' + mesNome(ym) + '</div><div class="kpi-v p">' + brl(c.fatura) + '</div><div class="kpi-s">' + det + '</div></div><button class="btn sec2 sm" data-act="ir-fatura" data-ym="' + ym + '">Ver itens</button></div>' + quemFatura(ym) + '</div>';
+    h += '<div class="card fatura" data-act="fat-det" data-ym="' + ym + '" role="button" tabindex="0" style="cursor:pointer"><div class="row"><div><div class="kpi-l p">💳 Fatura do cartão em ' + mesNome(ym) + '</div><div class="kpi-v p">' + brl(c.fatura) + '</div><div class="kpi-s">' + det + '</div></div><button class="btn sec2 sm" data-act="ir-fatura" data-ym="' + ym + '">Ver itens</button></div>' + quemFatura(ym) + '</div>';
   }
   var pend = aConfirmar();
   if (pend.length) {
@@ -1322,6 +1322,24 @@ ACT.confirmar = async function(el){
   if (!r.ok) { el.disabled = false; return toast(r.error || 'Não foi possível confirmar.', true); }
   var i = S.lancs.indexOf(l); S.lancs[i] = normL(Object.assign({}, r.atualizado, {id: l.id}));
   dirty(); toast('Confirmado ✅'); render();
+};
+
+/* fatura aberta por pessoa */
+ACT['fat-det'] = function(el){
+  var ym = el.dataset.ym, it = (idx().byFat[ym] || []).slice(), por = {}, ordem = [];
+  it.forEach(function(l){ var p = pessoaDe(l) || 'Sem nome'; if (!por[p]) { por[p] = []; ordem.push(p); } por[p].push(l); });
+  var tot = function(a){ return sum(a, function(l){ return l.valor; }); };
+  ordem.sort(function(a, b){ return tot(por[b]) - tot(por[a]); });
+  var h = mHead('💳 Fatura de ' + ymLabel(ym)) + '<div class="row" style="margin-bottom:12px"><span class="help">Total da fatura</span><b class="r" style="font-size:18px">' + brl(tot(it)) + '</b></div>';
+  if (!it.length) h += vazio('💳', 'Nenhuma compra nesta fatura', '');
+  ordem.forEach(function(p){
+    var a = por[p].sort(function(x, y){ return x.data < y.data ? 1 : -1; });
+    h += '<div class="row" style="padding:10px 0 6px;border-bottom:2px solid var(--border)"><b>👤 ' + esc(p) + '</b><b class="r">' + brl(tot(a)) + '</b></div>';
+    h += a.map(function(l){
+      return '<div class="row" style="padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer" data-act="editar" data-id="' + esc(l.id) + '"><div style="min-width:0"><div style="font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(l.desc || l.sub || l.categoria) + '</div><div class="help">' + fmtBR(l.data).slice(0, 5) + ' · ' + esc(l.categoria) + (l.cartao && l.cartao !== 'Cartão' ? ' · ' + esc(l.cartao) : '') + (Number(l.parcTotal) > 1 ? ' · parcela ' + esc(l.parcAtual) + '/' + esc(l.parcTotal) : '') + '</div></div><span style="font-size:13.5px">' + brl(l.valor) + '</span></div>';
+    }).join('');
+  });
+  openModal(h);
 };
 
 /* ═══════════════ AJUSTES ═══════════════ */
