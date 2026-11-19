@@ -406,7 +406,7 @@ function normL(r){
   if (cartao) fy = r.fatura_ym ? String(r.fatura_ym).substring(0, 7) : faturaYMde(data, r.cartao ? diaDoCartao(r.cartao) : diaFechPadrao());
   return {id: String(r.id), tipo: r.tipo, categoria: r.categoria || '', sub: r.sub || '', desc: r.desc || '', valor: Number(r.valor) || 0,
     data: data, ym: data.substring(0, 7), obs: r.obs || '', pagamento: r.pagamento || '', parcAtual: r.parcAtual, parcTotal: r.parcTotal,
-    autor: r.autor || '', meta_id: r.meta_id ? String(r.meta_id) : '', cartao: r.cartao || '', fatura_ym: fy,
+    autor: r.autor || '', pessoa: r.pessoa || '', meta_id: r.meta_id ? String(r.meta_id) : '', cartao: r.cartao || '', fatura_ym: fy,
     pv: String(r.provisionado == null || r.provisionado === '' ? '0' : r.provisionado), previsto: String(r.provisionado) === '1' || (String(r.provisionado) !== '2' && data > hojeISO())};
 }
 var _idx = null, _memo = {};
@@ -521,7 +521,7 @@ function pvPara(dt, atual, confirmar){
   return dt > hojeISO() ? '1' : (atual && atual.pv === '1' ? '1' : '0');
 }
 function payloadL(l, extra){
-  return Object.assign({id: l.id, tipo: l.tipo, categoria: l.categoria, sub: l.sub, desc: l.desc, obs: l.obs, pagamento: l.pagamento,
+  return Object.assign({id: l.id, tipo: l.tipo, pessoa: l.pessoa, categoria: l.categoria, sub: l.sub, desc: l.desc, obs: l.obs, pagamento: l.pagamento,
     meta_id: l.meta_id, cartao: l.cartao, dia_fech: l.cartao ? diaDoCartao(l.cartao) : undefined, valor: l.valor, data: l.data,
     parcAtual: l.parcAtual, parcTotal: l.parcTotal}, extra || {});
 }
@@ -538,6 +538,19 @@ async function marcarPrevistos(){
 
 /* modo privacidade: oculta os valores (fica só a estrutura da página) */
 try { S.oculto = localStorage.getItem('cf2_oculto') === '1'; } catch (e) {}
+
+/* quem gastou: a pessoa escolhida no lançamento; sem escolha, quem lançou */
+function pessoaDe(l){ return l.pessoa || l.autor || ''; }
+function pessoas(){
+  var me = primeiroNome(S.user && S.user.nome), seen = {}, out = [];
+  function add(n){ n = primeiroNome(n); if (n && !seen[n.toLowerCase()]) { seen[n.toLowerCase()] = 1; out.push(n); } }
+  add(me); (S.membros || []).forEach(function(m){ add(m.nome); });
+  S.lancs.forEach(function(l){ add(l.pessoa); add(l.autor); });
+  return out;
+}
+function carregarMembros(){
+  api('membros', {}).then(function(r){ if (r && r.ok) { S.membros = r.membros; S.membrosAt = Date.now(); } });
+}
 
 /* ═══════════════ SESSÃO / ENTRADA ═══════════════ */
 var ACT = {};
@@ -639,7 +652,7 @@ async function loadAll(){
   for (var t = 0; t < 3; t++) { r = await api('dados', {}); if (r.ok || !r.network) break; await sleep(1500 * (t + 1)); }
   if (!r || !r.ok) { setSync('err'); if (r && r.error && !S.loaded && !r.network) toast(r.error, true); render(); return false; }
   S.user = r.user; S.cfg = r.config || {}; S.objs = r.objetivos || [];
-  S.lancs = (r.lancamentos || []).map(normL); S.loaded = true; S.syncAt = Date.now(); dirty(); setSync('ok'); saveSession(); render(); marcarPrevistos(); return true;
+  S.lancs = (r.lancamentos || []).map(normL); S.loaded = true; S.syncAt = Date.now(); dirty(); setSync('ok'); saveSession(); render(); marcarPrevistos(); carregarMembros(); return true;
 }
 function setSync(v){ S.sync = v; var b = document.querySelector('.sync'); if (b) updSync(b); }
 function updSync(b){
@@ -720,6 +733,13 @@ function insights(ym){
 }
 
 /* ═══════════════ INÍCIO ═══════════════ */
+function quemFatura(ym){
+  var por = {}, n = 0;
+  (idx().byFat[ym] || []).forEach(function(l){ var p = pessoaDe(l) || '—'; if (!por[p]) { por[p] = 0; n++; } por[p] += l.valor; });
+  if (n < 2) return '';
+  return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><div class="help" style="margin-bottom:6px">Quem gastou nesta fatura</div>' +
+    Object.keys(por).sort(function(a, b){ return por[b] - por[a]; }).map(function(p){ return '<div class="row" style="padding:3px 0"><span>👤 ' + esc(p) + '</span><b>' + brl(por[p]) + '</b></div>'; }).join('') + '</div>';
+}
 function renderInicio(){
   var el = $('p-inicio'), ym = S.ym;
   if (!S.loaded) { el.innerHTML = topbar() + vazio('⏳', 'Carregando…', 'Buscando os dados da casa.'); return; }
@@ -742,7 +762,7 @@ function renderInicio(){
   if (c.nFatura > 0 || ym >= ymNow()) {
     var porCartao = {}; (idx().byFat[ym] || []).forEach(function(l){ var n = l.cartao || 'Cartão'; porCartao[n] = (porCartao[n] || 0) + l.valor; });
     var det = Object.keys(porCartao).length > 1 ? Object.keys(porCartao).map(function(n){ return esc(n) + ' ' + brl0(porCartao[n]); }).join(' · ') : (c.nFatura + ' compra' + (c.nFatura === 1 ? '' : 's'));
-    h += '<div class="card fatura"><div class="row"><div><div class="kpi-l p">💳 Fatura do cartão em ' + mesNome(ym) + '</div><div class="kpi-v p">' + brl(c.fatura) + '</div><div class="kpi-s">' + det + '</div></div><button class="btn sec2 sm" data-act="ir-fatura" data-ym="' + ym + '">Ver itens</button></div></div>';
+    h += '<div class="card fatura"><div class="row"><div><div class="kpi-l p">💳 Fatura do cartão em ' + mesNome(ym) + '</div><div class="kpi-v p">' + brl(c.fatura) + '</div><div class="kpi-s">' + det + '</div></div><button class="btn sec2 sm" data-act="ir-fatura" data-ym="' + ym + '">Ver itens</button></div>' + quemFatura(ym) + '</div>';
   }
   var pend = aConfirmar();
   if (pend.length) {
@@ -798,7 +818,8 @@ function filtrar(list){
     if (f === 'cartao' && !(l.tipo === 'Saída' && l.pagamento === 'Cartão')) return false;
     if (f === 'pix' && !(l.tipo === 'Saída' && l.pagamento !== 'Cartão')) return false;
     if (f === 'invest' && l.tipo !== 'Investimento') return false;
-    if (q && (l.desc + ' ' + l.categoria + ' ' + l.sub + ' ' + l.obs + ' ' + l.autor).toLowerCase().indexOf(q) < 0) return false;
+    if (f.indexOf('p:') === 0 && !(l.tipo === 'Saída' && pessoaDe(l) === f.slice(2))) return false;
+    if (q && (l.desc + ' ' + l.categoria + ' ' + l.sub + ' ' + l.obs + ' ' + l.autor + ' ' + l.pessoa).toLowerCase().indexOf(q) < 0) return false;
     return true;
   }).sort(function(a, b){ return a.data < b.data ? 1 : a.data > b.data ? -1 : (a.id < b.id ? 1 : -1); });
 }
@@ -806,6 +827,7 @@ function renderLanc(){
   var el = $('p-lanc');
   if (!S.loaded) { el.innerHTML = topbar() + vazio('⏳', 'Carregando…', ''); return; }
   var filtros = [['todos', 'Todos'], ['entradas', 'Entradas'], ['saidas', 'Saídas'], ['cartao', 'Cartão'], ['pix', 'Pix/Débito'], ['invest', 'Investimentos']];
+  if (pessoas().length > 1) pessoas().forEach(function(n){ filtros.push(['p:' + n, '👤 ' + n]); });
   var h = eyeBar() + monthBar(ymLabel(S.ym), 'Tudo que foi lançado neste mês') +
     '<div class="chips">' + filtros.map(function(f){ return '<button class="chip ' + (S.filtro === f[0] ? 'on' : '') + '" data-act="filtro" data-v="' + f[0] + '">' + f[1] + '</button>'; }).join('') + '</div>' +
     '<div class="field"><input id="busca" type="search" placeholder="🔎 Buscar por nome, categoria ou pessoa" value="' + esc(S.busca) + '"></div>' +
@@ -824,7 +846,8 @@ function renderLista(){
     if (l.tipo === 'Saída') pills += cartao ? '<span class="pill cc">💳 ' + esc(l.cartao && l.cartao !== 'Cartão' ? l.cartao : 'Cartão') + ' · fatura ' + ymAbr(l.fatura_ym) + '</span>' : '<span class="pill px">⚡ Pix/Débito</span>';
     if (Number(l.parcTotal) > 1) pills += '<span class="pill pa">' + esc(l.parcAtual) + '/' + esc(l.parcTotal) + 'x</span>';
     if (inv && l.meta_id) { var mm = S.objs.filter(function(o){ return o.id === l.meta_id; })[0]; if (mm) pills += '<span class="pill au">' + esc(mm.emoji || '🎯') + ' ' + esc(mm.nome) + '</span>'; }
-    if (l.autor && (multi || l.autor !== primeiroNome(S.user && S.user.nome))) pills += '<span class="pill au">👤 ' + esc(l.autor) + '</span>';
+    var quem = l.tipo === 'Saída' ? pessoaDe(l) : l.autor;
+    if (quem && (multi || quem !== primeiroNome(S.user && S.user.nome))) pills += '<span class="pill au">👤 ' + esc(quem) + '</span>';
     var lead = S.selMode ? '<input type="checkbox" data-act="sel-um" data-id="' + esc(l.id) + '" ' + (S.sel[l.id] ? 'checked' : '') + '>' : '';
     var acts = S.selMode ? '' : '<div class="acts">' + (l.tipo === 'Saída' && l.categoria !== 'Estorno' ? '<button data-act="estorno" data-id="' + esc(l.id) + '" title="Estornar" aria-label="Estornar">↩️</button>' : '') + (l.previsto ? '<button data-act="confirmar" data-id="' + esc(l.id) + '" title="Confirmar que aconteceu" aria-label="Confirmar">✅</button>' : '') + '<button data-act="editar" data-id="' + esc(l.id) + '" title="Editar" aria-label="Editar">✏️</button><button data-act="excluir" data-id="' + esc(l.id) + '" title="Excluir" aria-label="Excluir">🗑️</button></div>';
     h += '<div class="tx' + (l.previsto ? ' prev' : '') + '">' + lead + '<div class="ic" style="background:' + cor + '22">' + (EMOJI[l.categoria] || '📌') + '</div><div class="mid"><div class="t">' + esc(l.desc || l.categoria) + '</div><div class="s"><span>' + esc(l.categoria) + ' · ' + fmtBR(l.data).slice(0, 5) + '</span>' + pills + '</div>' + (l.obs ? '<div class="s" style="margin-top:3px"><span>“' + esc(l.obs) + '”</span></div>' : '') + '</div>' +
@@ -1046,7 +1069,7 @@ function openLanc(id, preset){
       '<div class="field"><label for="f-data">Data</label><input id="f-data" type="date" value="' + esc(dataIni) + '"></div></div>' +
     '<div class="field"><label for="f-cat">Categoria</label><select id="f-cat"></select></div>' +
     '<div class="two"><div class="field"><label for="f-sub">Tipo</label><select id="f-sub"></select></div><div class="field"><label for="f-desc">Descrição</label><select id="f-desc"></select></div></div>' +
-    '<div id="f-saida">' +
+    '<div id="f-saida">' + (pessoas().length > 1 ? '<div class="field"><label for="f-quem">Quem fez este gasto?</label><select id="f-quem">' + pessoas().map(function(n){ var sel = (edit ? pessoaDe(edit) : primeiroNome(S.user.nome)) === n; return '<option' + (sel ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select></div>' : '') +
       '<div class="field"><label>Como foi pago?</label><div class="seg" style="grid-template-columns:1fr 1fr;margin-bottom:0" id="f-pag"><button data-v="Cartão" class="card">💳 Cartão de crédito</button><button data-v="Pix/Débito" class="on">⚡ Pix / Débito</button></div></div>' +
       '<div id="f-cartao-box"><div class="field' + (cks.length > 1 ? '' : ' hidden') + '"><label for="f-cartao">Qual cartão?</label><select id="f-cartao">' + cks.map(function(c){ return opt(c.nome, c.nome + ' (fecha dia ' + c.dia + ')', c.nome === cartaoIni); }).join('') + '</select></div>' +
         '<div class="field' + (edit ? ' hidden' : '') + '" id="f-parc-box"><label for="f-parc">Em quantas vezes?</label><input id="f-parc" type="number" min="1" max="48" value="1" inputmode="numeric"><div class="hint" id="f-parc-hint"></div></div>' +
@@ -1115,7 +1138,7 @@ function openLanc(id, preset){
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return err.textContent = 'Escolha a data.';
       var cartao = st.tipo === 'Saída' && st.pag === 'Cartão', ck = cks.filter(function(c){ return c.nome === q('f-cartao').value; })[0] || cks[0];
       var base = {tipo: st.tipo, categoria: selCat.value, sub: selSub.value, desc: selDesc.value, obs: q('f-obs').value.trim(), pagamento: st.tipo === 'Saída' ? st.pag : '',
-        meta_id: st.tipo === 'Investimento' ? q('f-meta').value : '', cartao: cartao ? ck.nome : '', dia_fech: cartao ? ck.dia : undefined};
+        meta_id: st.tipo === 'Investimento' ? q('f-meta').value : '', pessoa: st.tipo === 'Saída' ? (q('f-quem') ? q('f-quem').value : primeiroNome(S.user.nome)) : '', cartao: cartao ? ck.nome : '', dia_fech: cartao ? ck.dia : undefined};
       var n = cartao && !edit ? Math.max(1, Math.min(48, parseInt(q('f-parc').value, 10) || 1)) : 1;
       var rec = !edit && q('f-rec') && q('f-rec').checked && n === 1 ? Math.max(2, Math.min(36, parseInt(q('f-rec-n').value, 10) || 12)) : 1;
       comBotao(q('f-salvar'), 'Salvando…', async function(){
